@@ -123,7 +123,7 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
                 observation.value(),
                 perCapita,
                 null,
-                observation.datasetVersion().sourceSystem().name(),
+                observation.datasetVersion().sourceSystem(),
                 observation.datasetVersion().collectedAt(),
                 fromCache
         );
