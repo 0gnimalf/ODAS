@@ -8,7 +8,17 @@ import java.time.LocalDate;
 
 @Data
 @Entity
-@Table(name = "reporting_period", schema = "a")
+@Table(name = "reporting_period", schema = "a",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_reporting_period_type_year_month_quarter",
+                        columnNames = {"periodType", "year", "month", "quarter"}
+                )
+        },
+        indexes = {
+                @Index(name = "idx_reporting_period_year_month", columnList = "year, month"),
+                @Index(name = "idx_reporting_period_type", columnList = "periodType")
+        })
 public class ReportingPeriodEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

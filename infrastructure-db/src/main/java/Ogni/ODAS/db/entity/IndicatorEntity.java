@@ -6,13 +6,17 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "indicator", schema = "a")
+@Table(name = "indicator", schema = "a",
+        indexes = {
+                @Index(name = "idx_indicator_parent", columnList = "parent_id"),
+                @Index(name = "idx_indicator_sort_order", columnList = "sortOrder")
+        })
 public class IndicatorEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, unique = true, length = 100)
     private String code;
 
     @Column(nullable = false, length = 100)
@@ -28,4 +32,7 @@ public class IndicatorEntity {
     private Integer level;
 
     private Integer sortOrder;
+
+    @Column(name = "is_section", nullable = false)
+    private boolean section;
 }

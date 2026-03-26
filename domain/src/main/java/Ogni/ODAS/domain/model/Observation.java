@@ -1,5 +1,7 @@
 package Ogni.ODAS.domain.model;
 
+import Ogni.ODAS.domain.enumtype.ObservationValueKind;
+
 import java.math.BigDecimal;
 
 public record Observation(
@@ -11,7 +13,7 @@ public record Observation(
 
         ReportingPeriod reportingPeriod,
 
-        String valueKind,
+        ObservationValueKind valueKind,
         BigDecimal value,
         boolean cumulative
 ) {

@@ -1,5 +1,8 @@
 package Ogni.ODAS.domain.enumtype;
 
+import lombok.Getter;
+
+@Getter
 public enum ObservationValueKind {
     // доходы | расходы | кредиты (сравнение по регионам) | источники финансирования (детально)
     PLAN(

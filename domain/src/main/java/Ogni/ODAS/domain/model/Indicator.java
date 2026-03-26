@@ -10,8 +10,6 @@ public record Indicator(
         Long parentId,
         Integer level,
         Integer sortOrder,
-        boolean section,
-        boolean core,
-        boolean active
+        boolean section
 ) {
 }

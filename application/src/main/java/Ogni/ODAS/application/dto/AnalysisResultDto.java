@@ -1,5 +1,8 @@
 package Ogni.ODAS.application.dto;
 
+import Ogni.ODAS.domain.enumtype.ObservationValueKind;
+import Ogni.ODAS.domain.enumtype.SourceSystemCode;
+
 import java.math.BigDecimal;
 import java.time.OffsetDateTime;
 
@@ -10,13 +13,13 @@ public record AnalysisResultDto(
         Integer year,
         Integer month,
 
-        String valueKind,
+        ObservationValueKind valueKind,
         BigDecimal value,
 
         BigDecimal perCapitaValue,
         BigDecimal growthRate,
 
-        String sourceSystem,
+        SourceSystemCode sourceSystem,
         OffsetDateTime collectedAt,
         boolean fromCache
 ) {

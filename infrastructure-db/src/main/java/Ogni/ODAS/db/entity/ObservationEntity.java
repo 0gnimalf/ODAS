@@ -8,7 +8,33 @@ import java.math.BigDecimal;
 
 @Data
 @Entity
-@Table(name = "observation", schema = "a")
+@Table(name = "observation", schema = "a",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_observation_dataset_region_indicator_period_kind",
+                        columnNames = {
+                                "dataset_version_id",
+                                "region_id",
+                                "indicator_id",
+                                "reporting_period_id",
+                                "value_kind"
+                        }
+                )
+        },
+        indexes = {
+                @Index(
+                        name = "idx_observation_region_indicator_period",
+                        columnList = "region_id, indicator_id, reporting_period_id"
+                ),
+                @Index(
+                        name = "idx_observation_dataset_version",
+                        columnList = "dataset_version_id"
+                ),
+                @Index(
+                        name = "idx_observation_value_kind",
+                        columnList = "value_kind"
+                )
+        })
 public class ObservationEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -32,4 +58,7 @@ public class ObservationEntity {
 
     @Column(nullable = false)
     private BigDecimal value;
+
+    @Column(name = "is_cumulative", nullable = false)
+    private boolean cumulative;
 }
