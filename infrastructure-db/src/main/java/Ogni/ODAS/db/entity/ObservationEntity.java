@@ -56,7 +56,7 @@ public class ObservationEntity {
     @Enumerated(EnumType.STRING)
     private ObservationValueKind valueKind;
 
-    @Column(nullable = false)
+    @Column(name = "\"value\"", nullable = false)
     private BigDecimal value;
 
     @Column(name = "is_cumulative", nullable = false)

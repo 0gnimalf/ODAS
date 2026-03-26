@@ -16,7 +16,7 @@ import java.time.LocalDate;
                 )
         },
         indexes = {
-                @Index(name = "idx_reporting_period_year_month", columnList = "year, month"),
+                @Index(name = "idx_reporting_period_year_month", columnList = "\"year\", \"month\""),
                 @Index(name = "idx_reporting_period_type", columnList = "periodType")
         })
 public class ReportingPeriodEntity {
@@ -28,10 +28,11 @@ public class ReportingPeriodEntity {
     @Enumerated(EnumType.STRING)
     private PeriodType periodType;
 
-    @Column(nullable = false, length = 4)
+    @Column(name = "\"year\"", nullable = false, length = 4)
     private Integer year;
-
+    @Column(name = "\"month\"")
     private Integer month;
+    @Column(name = "\"quarter\"")
     private Integer quarter;
 
     @Column(nullable = false)
