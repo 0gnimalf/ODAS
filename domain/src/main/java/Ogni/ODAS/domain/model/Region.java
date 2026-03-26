@@ -4,7 +4,7 @@ public record Region (
         Long id,
         String code,
         String name,
-        String federalDistrict,
+        String federalDistrictCode,
         boolean active
 ){
 }

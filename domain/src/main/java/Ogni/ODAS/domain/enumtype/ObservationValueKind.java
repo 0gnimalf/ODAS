@@ -23,7 +23,7 @@ public enum ObservationValueKind {
     // (доходы | расходы) сравнение по регионам
     ACTUAL_RATE_TO_PREVIOUS_PERIOD(
             "Исполнено; Темп к соотв.периоду пред.года,%",
-            UnitCode.RUB, ObservationValueType.ABSOLUTE),
+            UnitCode.PERCENT, ObservationValueType.RATIO),
     // (доходы | расходы) детально
     GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT(
             "Темп роста к соотв.периоду прошл.года,%; по субъекту",
