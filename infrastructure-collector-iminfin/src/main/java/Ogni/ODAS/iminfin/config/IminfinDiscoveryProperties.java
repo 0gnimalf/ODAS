@@ -14,6 +14,9 @@ public class IminfinDiscoveryProperties {
     private boolean failFast = false;
     private boolean smokeValidationEnabled = false;
     private Duration refreshIfOlderThan = Duration.ofHours(24);
+    private Duration connectTimeout = Duration.ofSeconds(5);
+    private Duration readTimeout = Duration.ofSeconds(20);
+    private String userAgent = "ODAS/0.0.1 (+iminfin-discovery)";
 
     public boolean isEnabled() {
         return enabled;
@@ -53,5 +56,29 @@ public class IminfinDiscoveryProperties {
 
     public void setRefreshIfOlderThan(Duration refreshIfOlderThan) {
         this.refreshIfOlderThan = refreshIfOlderThan;
+    }
+
+    public Duration getConnectTimeout() {
+        return connectTimeout;
+    }
+
+    public void setConnectTimeout(Duration connectTimeout) {
+        this.connectTimeout = connectTimeout;
+    }
+
+    public Duration getReadTimeout() {
+        return readTimeout;
+    }
+
+    public void setReadTimeout(Duration readTimeout) {
+        this.readTimeout = readTimeout;
+    }
+
+    public String getUserAgent() {
+        return userAgent;
+    }
+
+    public void setUserAgent(String userAgent) {
+        this.userAgent = userAgent;
     }
 }

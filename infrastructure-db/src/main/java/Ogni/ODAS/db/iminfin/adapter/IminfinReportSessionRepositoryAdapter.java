@@ -3,10 +3,13 @@ package Ogni.ODAS.db.iminfin.adapter;
 import Ogni.ODAS.application.iminfin.model.IminfinReportProfileKey;
 import Ogni.ODAS.application.iminfin.model.IminfinReportSession;
 import Ogni.ODAS.application.iminfin.port.out.IminfinReportSessionRepositoryPort;
+import Ogni.ODAS.db.iminfin.entity.IminfinReportSessionEntity;
 import Ogni.ODAS.db.iminfin.mapper.IminfinReportSessionEntityMapper;
 import Ogni.ODAS.db.iminfin.repository.JpaIminfinReportSessionRepository;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -19,14 +22,39 @@ public class IminfinReportSessionRepositoryAdapter implements IminfinReportSessi
     }
 
     @Override
+    @Transactional
+    public IminfinReportSession save(IminfinReportSession session) {
+        IminfinReportSessionEntity entity = repository.findByProfileKeyAndDataVersion(
+                        session.profileKey(),
+                        session.dataVersion()
+                )
+                .orElseGet(IminfinReportSessionEntity::new);
+
+        entity.setProfileKey(session.profileKey());
+        entity.setReportId(session.reportId());
+        entity.setUuid(session.uuid());
+        entity.setVersionLabel(session.versionLabel());
+        entity.setDataVersion(session.dataVersion());
+        entity.setResolvedAt(session.resolvedAt());
+        entity.setStatus(session.status());
+
+        IminfinReportSessionEntity saved = repository.save(entity);
+        return IminfinReportSessionEntityMapper.toDomain(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Optional<IminfinReportSession> findLatestByProfileKey(IminfinReportProfileKey profileKey) {
         return repository.findFirstByProfileKeyOrderByResolvedAtDesc(profileKey)
                 .map(IminfinReportSessionEntityMapper::toDomain);
     }
 
     @Override
-    public IminfinReportSession save(IminfinReportSession session) {
-        var saved = repository.save(IminfinReportSessionEntityMapper.toEntity(session));
-        return IminfinReportSessionEntityMapper.toDomain(saved);
+    @Transactional(readOnly = true)
+    public List<IminfinReportSession> findByProfileKey(IminfinReportProfileKey profileKey) {
+        return repository.findAllByProfileKeyOrderByResolvedAtDesc(profileKey)
+                .stream()
+                .map(IminfinReportSessionEntityMapper::toDomain)
+                .toList();
     }
 }

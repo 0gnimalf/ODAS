@@ -12,4 +12,10 @@ public record IminfinReportProfile(
         List<String> referenceDatasetCodes,
         List<IminfinParameterCatalogItem> seedCatalogItems
 ) {
+    public String redirectBaseUrl() {
+        String normalized = pageUrl.endsWith("/")
+                ? pageUrl.substring(0, pageUrl.length() - 1)
+                : pageUrl;
+        return normalized + "/redirect/copen-imon";
+    }
 }
