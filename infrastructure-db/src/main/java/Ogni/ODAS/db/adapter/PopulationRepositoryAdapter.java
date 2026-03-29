@@ -19,7 +19,7 @@ public class PopulationRepositoryAdapter implements PopulationRepositoryPort {
 
     @Override
     public Optional<PopulationStat> findByRegionAndPeriod(String regionCode, Integer year, Integer month) {
-        return repository.findByRegion_CodeAndReportingPeriod_YearAndReportingPeriod_Month(
+        return repository.findByRegionCodeAndReportingPeriodYearAndReportingPeriodMonth(
                         regionCode, year, month
                 )
                 .map(PopulationStatEntityMapper::toDomain);

@@ -15,8 +15,6 @@ public final class ReportingPeriodEntityMapper {
                 entity.getYear(),
                 entity.getMonth(),
                 entity.getQuarter(),
-                entity.getDateFrom(),
-                entity.getDateTo(),
                 entity.getLabel()
         );
     }

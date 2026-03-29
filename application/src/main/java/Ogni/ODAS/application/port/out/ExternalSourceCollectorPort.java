@@ -1,11 +1,13 @@
 package Ogni.ODAS.application.port.out;
 
 import Ogni.ODAS.application.command.AnalyzeBudgetDataCommand;
-import Ogni.ODAS.application.dto.CollectedObservationDto;
+import Ogni.ODAS.application.dto.CollectedDatasetDto;
 
 import java.util.List;
 
 public interface ExternalSourceCollectorPort {
 
-    List<CollectedObservationDto> collect(AnalyzeBudgetDataCommand command);
+    CollectedDatasetDto collect(AnalyzeBudgetDataCommand command);
+
+    List<Integer> getDesiredObservationIndexes();
 }

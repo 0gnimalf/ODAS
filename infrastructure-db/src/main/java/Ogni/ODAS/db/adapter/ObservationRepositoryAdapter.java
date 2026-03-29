@@ -36,7 +36,7 @@ public class ObservationRepositoryAdapter implements ObservationRepositoryPort {
             Integer month
     ) {
         return observationRepository
-                .findAllByRegion_CodeAndIndicator_CodeAndReportingPeriod_YearAndReportingPeriod_Month(
+                .findAllByRegionCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonth(
                         regionCode, indicatorCode, year, month
                 )
                 .stream()

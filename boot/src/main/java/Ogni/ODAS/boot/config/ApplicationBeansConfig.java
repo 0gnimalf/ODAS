@@ -6,6 +6,7 @@ import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
 import Ogni.ODAS.application.port.out.ObservationRepositoryPort;
 import Ogni.ODAS.application.port.out.PopulationRepositoryPort;
 import Ogni.ODAS.application.service.AnalyzeBudgetDataService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
@@ -25,5 +26,10 @@ public class ApplicationBeansConfig {
                 populationRepositoryPort,
                 externalSourceCollectorPort
         );
+    }
+
+    @Bean
+    public ObjectMapper objectMapper() {
+        return new ObjectMapper();
     }
 }

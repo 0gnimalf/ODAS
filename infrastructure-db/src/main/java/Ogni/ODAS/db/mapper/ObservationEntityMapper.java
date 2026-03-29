@@ -6,7 +6,6 @@ import Ogni.ODAS.db.repository.JpaRegionRepository;
 import Ogni.ODAS.db.repository.JpaReportingPeriodRepository;
 import Ogni.ODAS.domain.enumtype.FederalDistrictCode;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
-import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import Ogni.ODAS.domain.model.Observation;
 import org.springframework.stereotype.Component;
 
@@ -41,16 +40,16 @@ public class ObservationEntityMapper {
     }
 
     public ObservationEntity toEntity(Observation domain, DatasetVersionEntity datasetVersionEntity) {
-        ObservationEntity entity = new ObservationEntity();
-        entity.setId(domain.id());
-        entity.setDatasetVersion(datasetVersionEntity);
-        entity.setRegion(resolveRegion(domain.regionCode()));
-        entity.setIndicator(resolveIndicator(domain.indicatorCode()));
-        entity.setReportingPeriod(resolveReportingPeriod(domain));
-        entity.setValueKind(domain.valueKind());
-        entity.setValue(domain.value());
-        entity.setCumulative(domain.cumulative());
-        return entity;
+        return new ObservationEntity(
+                domain.id(),
+                datasetVersionEntity,
+                resolveRegion(domain.regionCode()),
+                resolveIndicator(domain.indicatorCode()),
+                resolveReportingPeriod(domain),
+                domain.valueKind(),
+                domain.value(),
+                domain.cumulative()
+        );
     }
 
     private RegionEntity resolveRegion(String regionCode) {
@@ -58,7 +57,7 @@ public class ObservationEntityMapper {
                 .orElseGet(() -> {
                     RegionEntity region = new RegionEntity();
                     region.setCode(regionCode);
-                    region.setName(regionCode);
+                    region.setName("Заглушка|" + regionCode);
                     region.setFederalDistrictCode(FederalDistrictCode.NONE);
                     return regionRepository.save(region);
                 });
@@ -69,9 +68,8 @@ public class ObservationEntityMapper {
                 .orElseGet(() -> {
                     IndicatorEntity indicator = new IndicatorEntity();
                     indicator.setCode(indicatorCode);
-                    indicator.setName(indicatorCode);
+                    indicator.setName("Заглушка|" + indicatorCode);
                     indicator.setIndicatorGroupCode(IndicatorGroupCode.OTHER);
-                    indicator.setSection(false);
                     return indicatorRepository.save(indicator);
                 });
     }
@@ -91,8 +89,6 @@ public class ObservationEntityMapper {
                     period.setYear(p.year());
                     period.setMonth(p.month());
                     period.setQuarter(p.quarter());
-                    period.setDateFrom(p.dateFrom());
-                    period.setDateTo(p.dateTo());
                     period.setLabel(p.label());
                     return reportingPeriodRepository.save(period);
                 });

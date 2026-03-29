@@ -26,6 +26,7 @@ public final class DatasetVersionEntityMapper {
                 domain.versionLabel(),
                 domain.sourceSystem(),
                 domain.collectedAt(),
-                domain.current());
+                domain.current()
+        );
     }
 }

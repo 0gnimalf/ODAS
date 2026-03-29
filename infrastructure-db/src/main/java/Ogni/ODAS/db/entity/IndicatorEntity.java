@@ -16,10 +16,10 @@ public class IndicatorEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 100)
+    @Column(nullable = false, unique = true, length = 1000)
     private String code;
 
-    @Column(nullable = false, length = 100)
+    @Column(nullable = false, length = 1000)
     private String name;
 
     @Column(nullable = false)
@@ -33,6 +33,6 @@ public class IndicatorEntity {
 
     private Integer sortOrder;
 
-    @Column(name = "is_section", nullable = false)
+    @Column(name = "is_section")
     private boolean section;
 }

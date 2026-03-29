@@ -2,6 +2,7 @@ package Ogni.ODAS.application.service;
 
 import Ogni.ODAS.application.command.AnalyzeBudgetDataCommand;
 import Ogni.ODAS.application.dto.AnalysisResultDto;
+import Ogni.ODAS.application.dto.CollectedDatasetDto;
 import Ogni.ODAS.application.dto.CollectedObservationDto;
 import Ogni.ODAS.application.port.in.AnalyzeBudgetDataUseCase;
 import Ogni.ODAS.application.port.out.DatasetVersionRepositoryPort;
@@ -9,7 +10,6 @@ import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
 import Ogni.ODAS.application.port.out.ObservationRepositoryPort;
 import Ogni.ODAS.application.port.out.PopulationRepositoryPort;
 import Ogni.ODAS.domain.enumtype.PeriodType;
-import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import Ogni.ODAS.domain.model.DatasetVersion;
 import Ogni.ODAS.domain.model.Observation;
 import Ogni.ODAS.domain.model.PopulationStat;
@@ -19,7 +19,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 
 public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
@@ -46,7 +48,7 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
         if (!command.forceRefresh()) {
             List<Observation> cached = observationRepositoryPort.findAllByRegionIndicatorAndPeriod(
                     command.regionCode(),
-                    command.indicatorCode(),
+                    command.indicatorCode().split(":")[1],
                     command.year(),
                     command.month()
             );
@@ -56,24 +58,15 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
             }
         }
 
-        List<CollectedObservationDto> collected = externalSourceCollectorPort.collect(command);
+        CollectedDatasetDto collectedDataset = externalSourceCollectorPort.collect(command);
 
-        if (collected.isEmpty()) {
+        if (collectedDataset == null || collectedDataset.observations() == null || collectedDataset.observations().isEmpty()) {
             throw new IllegalStateException("No data collected from external source");
         }
 
-        DatasetVersion datasetVersion = datasetVersionRepositoryPort.save(
-                new DatasetVersion(
-                        null,
-                        "regional-budget-execution",
-                        "dynamic",
-                        SourceSystemCode.IMINFIN,
-                        OffsetDateTime.now(),
-                        true
-                )
-        );
+        DatasetVersion datasetVersion = resolveDatasetVersion(collectedDataset);
 
-        List<Observation> observations = collected.stream()
+        List<Observation> observations = collectedDataset.observations().stream()
                 .map(e -> mapToObservation(e, datasetVersion))
                 .toList();
         List<Observation> saved = observationRepositoryPort.saveAll(observations);
@@ -81,7 +74,26 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
         return toResult(saved, false);
     }
 
+    private DatasetVersion resolveDatasetVersion(CollectedDatasetDto collectedDataset) {
+        return datasetVersionRepositoryPort.findByDatasetCodeAndVersionLabelAndSourceSystem(
+                        collectedDataset.datasetCode(),
+                        collectedDataset.versionLabel(),
+                        collectedDataset.sourceSystem()
+                )
+                .orElseGet(() -> datasetVersionRepositoryPort.save(
+                        new DatasetVersion(
+                                null,
+                                collectedDataset.datasetCode(),
+                                collectedDataset.versionLabel(),
+                                collectedDataset.sourceSystem(),
+                                OffsetDateTime.now(ZoneOffset.UTC),
+                                true
+                        )
+                ));
+    }
+
     private Observation mapToObservation(CollectedObservationDto dto, DatasetVersion datasetVersion) {
+        LocalDate nextMonth = LocalDate.of(dto.year(), dto.month(), 1).plusMonths(1);
 
         ReportingPeriod reportingPeriod = new ReportingPeriod(
                 null,
@@ -89,9 +101,13 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
                 dto.year(),
                 dto.month(),
                 null,
-                LocalDate.of(dto.year(), dto.month(), 1),
-                LocalDate.of(dto.year(), dto.month(), 1).plusMonths(1),
-                dto.month() + "." + dto.year()
+                String.format("с %02d.%02d.%04d по %02d.%02d.%04d",
+                        1,
+                        dto.month(),
+                        dto.year(),
+                        1,
+                        nextMonth.getMonth().getValue(),
+                        nextMonth.getYear())
         );
 
         return new Observation(
@@ -107,8 +123,16 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     }
 
     private List<AnalysisResultDto> toResult(List<Observation> observations, boolean fromCache) {
-        return observations.stream()
-                .map(obs -> toDto(obs, fromCache))
+        if (fromCache) {
+            return observations.stream()
+                    .map(obs -> toDto(obs, fromCache))
+                    .toList();
+        }
+        return externalSourceCollectorPort.getDesiredObservationIndexes().stream()
+                .filter(Objects::nonNull)
+                .filter(index -> index >= 0 && index < observations.size())
+                .map(observations::get)
+                .map(obs -> toDto(obs, false))
                 .toList();
     }
 

@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface JpaObservationRepository extends JpaRepository<ObservationEntity, Long> {
 
-    List<ObservationEntity> findAllByRegion_CodeAndIndicator_CodeAndReportingPeriod_YearAndReportingPeriod_Month(
+    List<ObservationEntity> findAllByRegionCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonth(
             String regionCode,
             String indicatorCode,
             Integer year,

@@ -2,25 +2,30 @@ package Ogni.ODAS.db.entity;
 
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import jakarta.persistence.*;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
 @Table(name = "observation", schema = "a",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_observation_dataset_region_indicator_period_kind",
-                        columnNames = {
-                                "dataset_version_id",
-                                "region_id",
-                                "indicator_id",
-                                "reporting_period_id",
-                                "value_kind"
-                        }
-                )
-        },
+// пока нет подчиненности у индикаторов
+//        uniqueConstraints = {
+//                @UniqueConstraint(
+//                        name = "uk_observation_dataset_region_indicator_period_kind",
+//                        columnNames = {
+//                                "dataset_version_id",
+//                                "region_id",
+//                                "indicator_id",
+//                                "reporting_period_id",
+//                                "value_kind"
+//                        }
+//                )
+//        },
         indexes = {
                 @Index(
                         name = "idx_observation_region_indicator_period",

@@ -24,6 +24,7 @@ public enum FederalDistrictCode {
     private final String name;
     private final String fullName;
     private final String shortName;
+
     private FederalDistrictCode(String name, String fullName, String shortName) {
         this.name = name;
         this.fullName = fullName;

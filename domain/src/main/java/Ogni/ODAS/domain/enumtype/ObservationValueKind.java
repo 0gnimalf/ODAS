@@ -42,7 +42,8 @@ public enum ObservationValueKind {
     private final String label;
     private final UnitCode unitCode;
     private final ObservationValueType observationValueType;
-    ObservationValueKind(String label,UnitCode unitCode, ObservationValueType observationValueType) {
+
+    ObservationValueKind(String label, UnitCode unitCode, ObservationValueType observationValueType) {
         this.label = label;
         this.unitCode = unitCode;
         this.observationValueType = observationValueType;
