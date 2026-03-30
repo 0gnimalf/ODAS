@@ -7,19 +7,28 @@ import lombok.Data;
 @Data
 @Entity
 @Table(name = "indicator", schema = "a",
+        uniqueConstraints = {
+                @UniqueConstraint(
+                        name = "uk_indicator_group_parent_code",
+                        columnNames = {"indicatorGroupCode", "code", "parent_id"}
+                )
+        },
         indexes = {
                 @Index(name = "idx_indicator_parent", columnList = "parent_id"),
-                @Index(name = "idx_indicator_sort_order", columnList = "sortOrder")
+                @Index(name = "idx_indicator_sort_order", columnList = "sortOrder"),
+                @Index(name = "idx_indicator_group_code", columnList = "indicatorGroupCode")
         })
 public class IndicatorEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 1000)
+    @Column(nullable = false)
+    @Lob
     private String code;
 
-    @Column(nullable = false, length = 1000)
+    @Column(nullable = false)
+    @Lob
     private String name;
 
     @Column(nullable = false)

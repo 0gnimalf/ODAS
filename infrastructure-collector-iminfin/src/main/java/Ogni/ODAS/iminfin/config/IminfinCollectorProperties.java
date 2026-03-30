@@ -17,7 +17,6 @@ public class IminfinCollectorProperties {
     private String passportRoot = "/areas-of-analysis/budget/finansoviy-pasport-subjecta-rf";
     private Integer minYearToCollect = 2015;
     private Integer maxYearToCollect = 2025;
-    private String territoriesParamPeriod = "2014-05-28T00:00:00.000Z";
     private Duration connectTimeout = Duration.ofSeconds(15);
     private Duration readTimeout = Duration.ofSeconds(90);
     private Duration discoveryTtl = Duration.ofHours(6);

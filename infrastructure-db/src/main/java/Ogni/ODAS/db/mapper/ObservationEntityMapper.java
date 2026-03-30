@@ -1,6 +1,10 @@
 package Ogni.ODAS.db.mapper;
 
-import Ogni.ODAS.db.entity.*;
+import Ogni.ODAS.db.entity.DatasetVersionEntity;
+import Ogni.ODAS.db.entity.IndicatorEntity;
+import Ogni.ODAS.db.entity.ObservationEntity;
+import Ogni.ODAS.db.entity.RegionEntity;
+import Ogni.ODAS.db.entity.ReportingPeriodEntity;
 import Ogni.ODAS.db.repository.JpaIndicatorRepository;
 import Ogni.ODAS.db.repository.JpaRegionRepository;
 import Ogni.ODAS.db.repository.JpaReportingPeriodRepository;
@@ -31,6 +35,7 @@ public class ObservationEntityMapper {
                 entity.getId(),
                 DatasetVersionEntityMapper.toDomain(entity.getDatasetVersion()),
                 entity.getRegion().getCode(),
+                entity.getIndicator().getIndicatorGroupCode(),
                 entity.getIndicator().getCode(),
                 ReportingPeriodEntityMapper.toDomain(entity.getReportingPeriod()),
                 entity.getValueKind(),
@@ -44,7 +49,7 @@ public class ObservationEntityMapper {
                 domain.id(),
                 datasetVersionEntity,
                 resolveRegion(domain.regionCode()),
-                resolveIndicator(domain.indicatorCode()),
+                resolveIndicator(domain.indicatorCode(), domain.indicatorGroupCode()),
                 resolveReportingPeriod(domain),
                 domain.valueKind(),
                 domain.value(),
@@ -63,13 +68,13 @@ public class ObservationEntityMapper {
                 });
     }
 
-    private IndicatorEntity resolveIndicator(String indicatorCode) {
-        return indicatorRepository.findByCode(indicatorCode)
+    private IndicatorEntity resolveIndicator(String indicatorCode, IndicatorGroupCode groupCode) {
+        return indicatorRepository.findByCodeAndIndicatorGroupCode(indicatorCode, groupCode)
                 .orElseGet(() -> {
                     IndicatorEntity indicator = new IndicatorEntity();
                     indicator.setCode(indicatorCode);
                     indicator.setName("Заглушка|" + indicatorCode);
-                    indicator.setIndicatorGroupCode(IndicatorGroupCode.OTHER);
+                    indicator.setIndicatorGroupCode(groupCode == null ? IndicatorGroupCode.OTHER : groupCode);
                     return indicatorRepository.save(indicator);
                 });
     }

@@ -1,11 +1,13 @@
 package Ogni.ODAS.application.dto;
 
+import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 
 import java.math.BigDecimal;
 
 public record CollectedObservationDto(
         String regionCode,
+        IndicatorGroupCode indicatorGroupCode,
         String indicatorCode,
 
         Integer year,

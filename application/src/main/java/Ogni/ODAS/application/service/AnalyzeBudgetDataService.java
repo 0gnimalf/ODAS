@@ -21,7 +21,6 @@ import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
@@ -48,7 +47,8 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
         if (!command.forceRefresh()) {
             List<Observation> cached = observationRepositoryPort.findAllByRegionIndicatorAndPeriod(
                     command.regionCode(),
-                    command.indicatorCode().split(":")[1],
+                    command.indicatorGroupCode(),
+                    command.indicatorCode(),
                     command.year(),
                     command.month()
             );
@@ -114,6 +114,7 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
                 null,
                 datasetVersion,
                 dto.regionCode(),
+                dto.indicatorGroupCode(),
                 dto.indicatorCode(),
                 reportingPeriod,
                 dto.valueKind(),
@@ -123,16 +124,8 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     }
 
     private List<AnalysisResultDto> toResult(List<Observation> observations, boolean fromCache) {
-        if (fromCache) {
-            return observations.stream()
-                    .map(obs -> toDto(obs, fromCache))
-                    .toList();
-        }
-        return externalSourceCollectorPort.getDesiredObservationIndexes().stream()
-                .filter(Objects::nonNull)
-                .filter(index -> index >= 0 && index < observations.size())
-                .map(observations::get)
-                .map(obs -> toDto(obs, false))
+        return observations.stream()
+                .map(obs -> toDto(obs, fromCache))
                 .toList();
     }
 
@@ -140,6 +133,7 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
         BigDecimal perCapita = calculatePerCapita(observation);
         return new AnalysisResultDto(
                 observation.regionCode(),
+                observation.indicatorGroupCode(),
                 observation.indicatorCode(),
                 observation.reportingPeriod().year(),
                 observation.reportingPeriod().month(),

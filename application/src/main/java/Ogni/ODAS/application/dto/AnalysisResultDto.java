@@ -1,5 +1,6 @@
 package Ogni.ODAS.application.dto;
 
+import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 
@@ -8,6 +9,7 @@ import java.time.OffsetDateTime;
 
 public record AnalysisResultDto(
         String regionCode,
+        IndicatorGroupCode indicatorGroupCode,
         String indicatorCode,
 
         Integer year,

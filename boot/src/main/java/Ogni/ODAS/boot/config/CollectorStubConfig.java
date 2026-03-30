@@ -3,6 +3,8 @@ package Ogni.ODAS.boot.config;
 import Ogni.ODAS.application.command.AnalyzeBudgetDataCommand;
 import Ogni.ODAS.application.dto.CollectedDatasetDto;
 import Ogni.ODAS.application.dto.CollectedObservationDto;
+import Ogni.ODAS.application.dto.CollectedReferenceCatalogDto;
+import Ogni.ODAS.application.port.out.ExternalReferenceCollectorPort;
 import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
 import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import org.springframework.context.annotation.Bean;
@@ -27,11 +29,11 @@ public class CollectorStubConfig {
                         List.<CollectedObservationDto>of()
                 );
             }
-
-            @Override
-            public List<Integer> getDesiredObservationIndexes() {
-                return List.of();
-            }
         };
+    }
+
+    @Bean
+    public ExternalReferenceCollectorPort externalReferenceCollectorPort() {
+        return () -> new CollectedReferenceCatalogDto(List.of(), List.of());
     }
 }

@@ -97,6 +97,42 @@ public class IminfinReportDiscoveryService {
         );
     }
 
+    public int loadHelperPeriod(IminfinReportDefinition reportDefinition, String period) {
+        Map<String, Object> query = new LinkedHashMap<>();
+        query.put("uuid", reportDefinition.uuid());
+        query.put("dataVersion", reportDefinition.dataVersion());
+        query.put("dsCode", "periodHelperData");
+        query.put("paramPeriod", period);
+
+        JsonNode helperResponse = httpClient.getJson(dataUrl(query));
+        JsonNode data = helperResponse.path("data");
+        if (!data.isArray() || data.isEmpty() || !data.get(0).isArray() || data.get(0).isEmpty()) {
+            return 1;
+        }
+        return data.get(0).get(0).asInt(1);
+    }
+
+    public String loadLatestPeriod(IminfinReportDefinition reportDefinition) {
+        Map<String, Object> query = new LinkedHashMap<>();
+        query.put("uuid", reportDefinition.uuid());
+        query.put("dataVersion", reportDefinition.dataVersion());
+        query.put("dsCode", "ds_FK_Passport_MONTH_Periods");
+        query.put("verified", true);
+        query.put("latest", false);
+
+        JsonNode response = httpClient.getJson(dataUrl(query));
+        JsonNode data = response.path("data");
+        if (!data.isArray() || data.isEmpty()) {
+            throw new IllegalStateException("No periods available for report " + reportDefinition.title());
+        }
+
+        JsonNode last = data.get(data.size() - 1);
+        if (!last.isArray() || last.isEmpty()) {
+            throw new IllegalStateException("Unexpected period payload for report " + reportDefinition.title());
+        }
+        return last.get(0).asText();
+    }
+
     private Map<String, IminfinParameterDefinition> parseParameters(JsonNode parametersNode) {
         Map<String, IminfinParameterDefinition> result = new LinkedHashMap<>();
         if (!parametersNode.isArray()) {

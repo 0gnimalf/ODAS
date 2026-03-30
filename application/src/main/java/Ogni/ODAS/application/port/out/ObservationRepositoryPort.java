@@ -1,14 +1,15 @@
 package Ogni.ODAS.application.port.out;
 
+import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Observation;
 
 import java.util.List;
-
 
 public interface ObservationRepositoryPort {
 
     List<Observation> findAllByRegionIndicatorAndPeriod(
             String regionCode,
+            IndicatorGroupCode indicatorGroupCode,
             String indicatorCode,
             Integer year,
             Integer month

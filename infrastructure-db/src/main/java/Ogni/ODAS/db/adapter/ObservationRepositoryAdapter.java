@@ -6,6 +6,7 @@ import Ogni.ODAS.db.mapper.DatasetVersionEntityMapper;
 import Ogni.ODAS.db.mapper.ObservationEntityMapper;
 import Ogni.ODAS.db.repository.JpaDatasetVersionRepository;
 import Ogni.ODAS.db.repository.JpaObservationRepository;
+import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Observation;
 import org.springframework.stereotype.Component;
 
@@ -31,13 +32,14 @@ public class ObservationRepositoryAdapter implements ObservationRepositoryPort {
     @Override
     public List<Observation> findAllByRegionIndicatorAndPeriod(
             String regionCode,
+            IndicatorGroupCode indicatorGroupCode,
             String indicatorCode,
             Integer year,
             Integer month
     ) {
         return observationRepository
-                .findAllByRegionCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonth(
-                        regionCode, indicatorCode, year, month
+                .findAllByRegionCodeAndIndicatorIndicatorGroupCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonth(
+                        regionCode, indicatorGroupCode, indicatorCode, year, month
                 )
                 .stream()
                 .map(mapper::toDomain)

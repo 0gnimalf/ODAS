@@ -4,10 +4,14 @@ import Ogni.ODAS.application.command.AnalyzeBudgetDataCommand;
 import Ogni.ODAS.application.dto.CollectedDatasetDto;
 import Ogni.ODAS.application.dto.CollectedObservationDto;
 import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
+import Ogni.ODAS.application.port.out.RegionRepositoryPort;
+import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.enumtype.SourceSystemCode;
+import Ogni.ODAS.domain.model.Region;
 import Ogni.ODAS.iminfin.config.IminfinCollectorProperties;
 import Ogni.ODAS.iminfin.config.IminfinPassportPage;
 import Ogni.ODAS.iminfin.http.IminfinHttpClient;
+import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;
 import Ogni.ODAS.iminfin.model.IminfinReportDefinition;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -28,63 +32,89 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
     private final IminfinTerritoryResolver territoryResolver;
     private final IminfinHttpClient httpClient;
     private final IminfinObservationMapper observationMapper;
-    private final IminfinIndicatorSelector indicatorSelector;
     private final IminfinCollectorProperties properties;
+    private final RegionRepositoryPort regionRepositoryPort;
 
     public IminfinDirectCollector(
             IminfinReportDiscoveryService discoveryService,
             IminfinTerritoryResolver territoryResolver,
             IminfinHttpClient httpClient,
             IminfinObservationMapper observationMapper,
-            IminfinIndicatorSelector indicatorSelector,
-            IminfinCollectorProperties properties
+            IminfinCollectorProperties properties,
+            RegionRepositoryPort regionRepositoryPort
     ) {
         this.discoveryService = discoveryService;
         this.territoryResolver = territoryResolver;
         this.httpClient = httpClient;
         this.observationMapper = observationMapper;
-        this.indicatorSelector = indicatorSelector;
         this.properties = properties;
+        this.regionRepositoryPort = regionRepositoryPort;
     }
 
     @Override
     public CollectedDatasetDto collect(AnalyzeBudgetDataCommand command) {
         validate(command);
 
-        IminfinIndicatorSelector.Selection selection = indicatorSelector.parse(command.indicatorCode());
-        for (IminfinPassportPage page : selection.candidatePages()) {
-            CollectedDatasetDto dataset = tryCollectFromPage(command, selection, page);
-            if (dataset != null && !dataset.observations().isEmpty()) {
-                return dataset;
-            }
+        return switch (command.indicatorGroupCode()) {
+            case INCOME -> collectIncome(command);
+            case OUTCOME -> collectOutcome(command);
+            case FIN_SOURCE -> collectFinSource(command);
+            case CREDIT -> collectCredit(command);
+            default -> throw new IllegalStateException("Unsupported indicatorGroupCode: " + command.indicatorGroupCode());
+        };
+    }
+
+    private CollectedDatasetDto collectIncome(AnalyzeBudgetDataCommand command) {
+        return collectDetail(command, IminfinPassportPage.INCOMES_DETAIL, IndicatorGroupCode.INCOME, "income");
+    }
+
+    private CollectedDatasetDto collectOutcome(AnalyzeBudgetDataCommand command) {
+        String prefix;
+        int outcomesType;
+        if (command.indicatorCode().startsWith("outcome/rzpr/")) {
+            prefix = "outcome/rzpr";
+            outcomesType = 2;
+        } else if (command.indicatorCode().startsWith("outcome/kvr/")) {
+            prefix = "outcome/kvr";
+            outcomesType = 3;
+        } else {
+            throw new IllegalStateException("Outcome indicatorCode must start with 'outcome/rzpr/' or 'outcome/kvr/'");
         }
-
-        throw new IllegalStateException(
-                "Indicator was not found in iMinfin reports for region="
-                        + command.regionCode()
-                        + ", indicator="
-                        + command.indicatorCode()
-                        + ", period="
-                        + command.month()
-                        + "."
-                        + command.year()
-        );
+        return collectDetail(command, IminfinPassportPage.OUTCOMES_DETAIL, outcomesType, IndicatorGroupCode.OUTCOME, prefix);
     }
 
-    @Override
-    public List<Integer> getDesiredObservationIndexes() {
-        return observationMapper.getDesiredObservationIndexes();
+    private CollectedDatasetDto collectFinSource(AnalyzeBudgetDataCommand command) {
+        return collectDetail(command, IminfinPassportPage.FIN_SOURCES_DETAIL, IndicatorGroupCode.FIN_SOURCE, "fin-source");
     }
 
-    private CollectedDatasetDto tryCollectFromPage(
+    private CollectedDatasetDto collectDetail(
             AnalyzeBudgetDataCommand command,
-            IminfinIndicatorSelector.Selection selection,
-            IminfinPassportPage page
+            IminfinPassportPage page,
+            IndicatorGroupCode indicatorGroupCode
+    ) {
+        return collectDetail(command, page, indicatorGroupCode, null);
+    }
+
+    private CollectedDatasetDto collectDetail(
+            AnalyzeBudgetDataCommand command,
+            IminfinPassportPage page,
+            IndicatorGroupCode indicatorGroupCode,
+            String rootPrefix
+    ) {
+        return collectDetail(command, page, null, indicatorGroupCode, rootPrefix);
+    }
+
+    private CollectedDatasetDto collectDetail(
+            AnalyzeBudgetDataCommand command,
+            IminfinPassportPage page,
+            Integer outcomesType,
+            IndicatorGroupCode indicatorGroupCode,
+            String rootPrefix
     ) {
         IminfinReportDefinition reportDefinition = discoveryService.discover(page);
-        String territoryCode = territoryResolver.resolve(reportDefinition, command.regionCode());
+        String territoryCode = territoryResolver.resolve(command.regionCode());
         String period = toIminfinPeriod(command.year(), command.month());
-        int helperPeriod = loadHelperPeriod(reportDefinition, period);
+        int helperPeriod = discoveryService.loadHelperPeriod(reportDefinition, period);
         String dsCode = reportDefinition.resolveDetailDataSource(helperPeriod);
 
         Map<String, Object> query = new LinkedHashMap<>();
@@ -93,24 +123,26 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
         query.put("dsCode", dsCode);
         query.put("territory", territoryCode);
         query.put("paramPeriod", period);
-        if (page == IminfinPassportPage.OUTCOMES_DETAIL) {
-            query.put("PassportFK_002_002_outcomesType", selection.expensesBySection() ? 2 : 3);
+        if (outcomesType != null) {
+            query.put("PassportFK_002_002_outcomesType", outcomesType);
         }
 
         JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
         JsonNode dataRows = response.path("data");
-        List<CollectedObservationDto> observations = observationMapper.mapDetailObservations(
+        IminfinDataSourceDefinition dataSource = reportDefinition.requireDataSource(dsCode);
+        List<CollectedObservationDto> observations = observationMapper.mapDetailObservationsForCode(
                 territoryCode,
-                selection.indicatorName(),
+                indicatorGroupCode,
+                command.indicatorCode(),
                 command.year(),
                 command.month(),
-                reportDefinition.requireDataSource(dsCode),
-                dataRows,
-                indicatorSelector
+                rootPrefix,
+                dataSource,
+                dataRows
         );
 
         if (observations.isEmpty()) {
-            return null;
+            throw new IllegalStateException("No observations found for indicatorCode=" + command.indicatorCode());
         }
 
         return new CollectedDatasetDto(
@@ -121,19 +153,51 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
         );
     }
 
-    private int loadHelperPeriod(IminfinReportDefinition reportDefinition, String period) {
+    private CollectedDatasetDto collectCredit(AnalyzeBudgetDataCommand command) {
+        IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.CREDITS_COMPARE);
+        String period = toIminfinPeriod(command.year(), command.month());
+        Region region = regionRepositoryPort.findByCode(command.regionCode())
+                .orElseThrow(() -> new IllegalStateException("Region not found in local reference catalog: " + command.regionCode()));
+
         Map<String, Object> query = new LinkedHashMap<>();
         query.put("uuid", reportDefinition.uuid());
         query.put("dataVersion", reportDefinition.dataVersion());
-        query.put("dsCode", "periodHelperData");
+        query.put("dsCode", "PassportFK_001_005_creditGridData");
+        query.put("PassportFK_001_005_paramCredits", toCreditSourceCode(command.indicatorCode()));
         query.put("paramPeriod", period);
 
-        JsonNode helperResponse = httpClient.getJson(discoveryService.dataUrl(query));
-        JsonNode data = helperResponse.path("data");
-        if (!data.isArray() || data.isEmpty() || !data.get(0).isArray() || data.get(0).isEmpty()) {
-            return 1;
+        JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
+        JsonNode dataRows = response.path("data");
+        List<CollectedObservationDto> observations = observationMapper.mapCreditObservationsForRegion(
+                command.regionCode(),
+                region.name(),
+                command.indicatorCode(),
+                command.year(),
+                command.month(),
+                reportDefinition.requireDataSource("PassportFK_001_005_creditGridData"),
+                dataRows
+        );
+
+        if (observations.isEmpty()) {
+            throw new IllegalStateException(
+                    "No credit observations found for region=" + command.regionCode() + ", indicatorCode=" + command.indicatorCode()
+            );
         }
-        return data.get(0).get(0).asInt(1);
+
+        return new CollectedDatasetDto(
+                reportDefinition.page().name().toLowerCase(),
+                reportDefinition.dataVersion(),
+                SourceSystemCode.IMINFIN,
+                observations
+        );
+    }
+
+
+    private String toCreditSourceCode(String indicatorCode) {
+        if (indicatorCode == null || !indicatorCode.startsWith("credit/")) {
+            throw new IllegalStateException("Credit indicatorCode must start with 'credit/'");
+        }
+        return indicatorCode.substring("credit/".length());
     }
 
     private String toIminfinPeriod(int year, int month) {
@@ -147,6 +211,9 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
         if (command.regionCode() == null || command.regionCode().isBlank()) {
             throw new IllegalStateException("regionCode is required");
         }
+        if (command.indicatorGroupCode() == null) {
+            throw new IllegalStateException("indicatorGroupCode is required");
+        }
         if (command.indicatorCode() == null || command.indicatorCode().isBlank()) {
             throw new IllegalStateException("indicatorCode is required");
         }
@@ -156,8 +223,7 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
         if (command.month() < 1 || command.month() > 12) {
             throw new IllegalStateException("month must be between 1 and 12");
         }
-        if (command.year() < properties.getMinYearToCollect() ||
-                command.year() > properties.getMaxYearToCollect()) {
+        if (command.year() < properties.getMinYearToCollect() || command.year() > properties.getMaxYearToCollect()) {
             throw new IllegalStateException("year must be valid");
         }
     }

@@ -1,5 +1,6 @@
 package Ogni.ODAS.domain.model;
 
+import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 
 import java.math.BigDecimal;
@@ -9,6 +10,7 @@ public record Observation(
 
         DatasetVersion datasetVersion,
         String regionCode,
+        IndicatorGroupCode indicatorGroupCode,
         String indicatorCode,
 
         ReportingPeriod reportingPeriod,
