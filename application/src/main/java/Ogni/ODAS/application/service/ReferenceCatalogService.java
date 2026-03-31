@@ -12,11 +12,7 @@ import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Indicator;
 import Ogni.ODAS.domain.model.Region;
 
-import java.util.Comparator;
-import java.util.EnumMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 
 public class ReferenceCatalogService implements ReferenceCatalogUseCase {
 

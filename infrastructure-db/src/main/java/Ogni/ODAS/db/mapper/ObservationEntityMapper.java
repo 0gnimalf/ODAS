@@ -1,10 +1,6 @@
 package Ogni.ODAS.db.mapper;
 
-import Ogni.ODAS.db.entity.DatasetVersionEntity;
-import Ogni.ODAS.db.entity.IndicatorEntity;
-import Ogni.ODAS.db.entity.ObservationEntity;
-import Ogni.ODAS.db.entity.RegionEntity;
-import Ogni.ODAS.db.entity.ReportingPeriodEntity;
+import Ogni.ODAS.db.entity.*;
 import Ogni.ODAS.db.repository.JpaIndicatorRepository;
 import Ogni.ODAS.db.repository.JpaRegionRepository;
 import Ogni.ODAS.db.repository.JpaReportingPeriodRepository;

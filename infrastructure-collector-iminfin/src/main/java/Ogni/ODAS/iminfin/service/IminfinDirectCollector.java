@@ -60,7 +60,8 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
             case OUTCOME -> collectOutcome(command);
             case FIN_SOURCE -> collectFinSource(command);
             case CREDIT -> collectCredit(command);
-            default -> throw new IllegalStateException("Unsupported indicatorGroupCode: " + command.indicatorGroupCode());
+            default ->
+                    throw new IllegalStateException("Unsupported indicatorGroupCode: " + command.indicatorGroupCode());
         };
     }
 

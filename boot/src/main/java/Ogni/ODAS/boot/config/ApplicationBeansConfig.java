@@ -2,13 +2,7 @@ package Ogni.ODAS.boot.config;
 
 import Ogni.ODAS.application.port.in.AnalyzeBudgetDataUseCase;
 import Ogni.ODAS.application.port.in.ReferenceCatalogUseCase;
-import Ogni.ODAS.application.port.out.DatasetVersionRepositoryPort;
-import Ogni.ODAS.application.port.out.ExternalReferenceCollectorPort;
-import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
-import Ogni.ODAS.application.port.out.IndicatorRepositoryPort;
-import Ogni.ODAS.application.port.out.ObservationRepositoryPort;
-import Ogni.ODAS.application.port.out.PopulationRepositoryPort;
-import Ogni.ODAS.application.port.out.RegionRepositoryPort;
+import Ogni.ODAS.application.port.out.*;
 import Ogni.ODAS.application.service.AnalyzeBudgetDataService;
 import Ogni.ODAS.application.service.ReferenceCatalogService;
 import com.fasterxml.jackson.databind.ObjectMapper;

@@ -5,7 +5,6 @@ import Ogni.ODAS.application.dto.CollectedReferenceCatalogDto;
 import Ogni.ODAS.application.dto.CollectedRegionDto;
 import Ogni.ODAS.application.port.out.ExternalReferenceCollectorPort;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
-import Ogni.ODAS.iminfin.config.IminfinCollectorProperties;
 import Ogni.ODAS.iminfin.config.IminfinPassportPage;
 import Ogni.ODAS.iminfin.http.IminfinHttpClient;
 import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;

@@ -1,17 +1,8 @@
 package Ogni.ODAS.iminfin.service;
 
 import Ogni.ODAS.application.port.out.RegionRepositoryPort;
-import Ogni.ODAS.domain.enumtype.FederalDistrictCode;
-import Ogni.ODAS.domain.model.Region;
-import Ogni.ODAS.iminfin.config.IminfinCollectorProperties;
-import Ogni.ODAS.iminfin.http.IminfinHttpClient;
-import Ogni.ODAS.iminfin.model.IminfinReportDefinition;
-import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
