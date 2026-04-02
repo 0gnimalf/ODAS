@@ -7,9 +7,8 @@ import java.util.Optional;
 
 public interface JpaPopulationStatRepository extends JpaRepository<PopulationStatEntity, Long> {
 
-    Optional<PopulationStatEntity> findByRegionCodeAndReportingPeriodYearAndReportingPeriodMonth(
+    Optional<PopulationStatEntity> findByRegionCodeAndReportingPeriodYear(
             String regionCode,
-            Integer year,
-            Integer month
+            Integer year
     );
 }

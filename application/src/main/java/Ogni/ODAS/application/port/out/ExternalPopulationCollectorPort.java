@@ -4,12 +4,10 @@ import Ogni.ODAS.domain.model.PopulationStat;
 
 import java.util.Optional;
 
-public interface PopulationRepositoryPort {
+public interface ExternalPopulationCollectorPort {
 
-    Optional<PopulationStat> findByRegionAndYear(
+    Optional<PopulationStat> collect(
             String regionCode,
             Integer year
     );
-
-    PopulationStat save(PopulationStat populationStat);
 }

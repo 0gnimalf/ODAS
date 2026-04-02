@@ -17,12 +17,14 @@ public class ApplicationBeansConfig {
             ObservationRepositoryPort observationRepositoryPort,
             DatasetVersionRepositoryPort datasetVersionRepositoryPort,
             PopulationRepositoryPort populationRepositoryPort,
+            ExternalPopulationCollectorPort externalPopulationCollectorPort,
             ExternalSourceCollectorPort externalSourceCollectorPort
     ) {
         return new AnalyzeBudgetDataService(
                 observationRepositoryPort,
                 datasetVersionRepositoryPort,
                 populationRepositoryPort,
+                externalPopulationCollectorPort,
                 externalSourceCollectorPort
         );
     }

@@ -5,10 +5,7 @@ import Ogni.ODAS.application.dto.AnalysisResultDto;
 import Ogni.ODAS.application.dto.CollectedDatasetDto;
 import Ogni.ODAS.application.dto.CollectedObservationDto;
 import Ogni.ODAS.application.port.in.AnalyzeBudgetDataUseCase;
-import Ogni.ODAS.application.port.out.DatasetVersionRepositoryPort;
-import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
-import Ogni.ODAS.application.port.out.ObservationRepositoryPort;
-import Ogni.ODAS.application.port.out.PopulationRepositoryPort;
+import Ogni.ODAS.application.port.out.*;
 import Ogni.ODAS.domain.enumtype.PeriodType;
 import Ogni.ODAS.domain.model.DatasetVersion;
 import Ogni.ODAS.domain.model.Observation;
@@ -28,17 +25,20 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     private final ObservationRepositoryPort observationRepositoryPort;
     private final DatasetVersionRepositoryPort datasetVersionRepositoryPort;
     private final PopulationRepositoryPort populationRepositoryPort;
+    private final ExternalPopulationCollectorPort externalPopulationCollectorPort;
     private final ExternalSourceCollectorPort externalSourceCollectorPort;
 
     public AnalyzeBudgetDataService(
             ObservationRepositoryPort observationRepositoryPort,
             DatasetVersionRepositoryPort datasetVersionRepositoryPort,
             PopulationRepositoryPort populationRepositoryPort,
+            ExternalPopulationCollectorPort externalPopulationCollectorPort,
             ExternalSourceCollectorPort externalSourceCollectorPort
     ) {
         this.observationRepositoryPort = observationRepositoryPort;
         this.datasetVersionRepositoryPort = datasetVersionRepositoryPort;
         this.populationRepositoryPort = populationRepositoryPort;
+        this.externalPopulationCollectorPort = externalPopulationCollectorPort;
         this.externalSourceCollectorPort = externalSourceCollectorPort;
     }
 
@@ -169,11 +169,17 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     }
 
     private BigDecimal calculatePerCapita(Observation observation) {
-        Optional<PopulationStat> population = populationRepositoryPort.findByRegionAndPeriod(
+        Optional<PopulationStat> population = populationRepositoryPort.findByRegionAndYear(
                 observation.regionCode(),
-                observation.reportingPeriod().year(),
-                observation.reportingPeriod().month()
+                observation.reportingPeriod().year()
         );
+
+        if (population.isEmpty()) {
+            population = externalPopulationCollectorPort.collect(
+                    observation.regionCode(),
+                    observation.reportingPeriod().year()
+            ).map(populationRepositoryPort::save);
+        }
 
         if (population.isEmpty() || population.get().populationValue() == null || population.get().populationValue() == 0) {
             return null;

@@ -15,6 +15,8 @@ import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static Ogni.ODAS.iminfin.util.IminfinUrlNormalizer.*;
+
 @Service
 public class IminfinReportDiscoveryService {
 
@@ -37,11 +39,18 @@ public class IminfinReportDiscoveryService {
             return cachedDefinition.definition();
         }
 
-        IminfinReportBootstrap bootstrap = loadBootstrap(page);
-        JsonNode metaJson = httpClient.getJson(metaUrl(bootstrap));
-        JsonNode primaryJson = httpClient.getJson(primaryUrl(bootstrap));
+        String dataUrl = passportDataUrl();
+        IminfinReportDefinition definition = discover(page, page.pageUrl(properties), dataUrl);
+        cache.put(page, new CachedDefinition(definition, Instant.now()));
+        return definition;
+    }
 
-        IminfinReportDefinition definition = new IminfinReportDefinition(
+    private IminfinReportDefinition discover(IminfinPassportPage page, String pageUrl, String dataUrl) {
+        IminfinReportBootstrap bootstrap = loadBootstrap(pageUrl);
+        JsonNode metaJson = httpClient.getJson(metaUrl(bootstrap, dataUrl));
+        JsonNode primaryJson = httpClient.getJson(primaryUrl(bootstrap, dataUrl));
+
+        return new IminfinReportDefinition(
                 page,
                 bootstrap.reportId(),
                 metaJson.path("uuid").asText(bootstrap.reportId()),
@@ -53,33 +62,30 @@ public class IminfinReportDiscoveryService {
                 parseViewMainDataSources(metaJson.path("reportViews")),
                 parsePrimarySources(primaryJson)
         );
-
-        cache.put(page, new CachedDefinition(definition, Instant.now()));
-        return definition;
     }
 
     public String dataUrl(Map<String, ?> queryParameters) {
-        return httpClient.withQuery(baseDataUrl(), queryParameters);
+        return httpClient.withQuery(passportDataUrl(), queryParameters);
     }
 
-    private IminfinReportBootstrap loadBootstrap(IminfinPassportPage page) {
-        String html = httpClient.getText(page.pageUrl(properties));
+    private IminfinReportBootstrap loadBootstrap(String pageUrl) {
+        String html = httpClient.getText(pageUrl);
         Matcher matcher = REPORT_LOAD_PATTERN.matcher(html);
         if (!matcher.find()) {
-            throw new IllegalStateException("Unable to discover report bootstrap on page " + page.pageUrl(properties));
+            throw new IllegalStateException("Unable to discover report bootstrap on page " + pageUrl);
         }
         return new IminfinReportBootstrap(matcher.group("uuid"), matcher.group("version"));
     }
 
-    private String baseDataUrl() {
+    private String passportDataUrl() {
         return trimTrailingSlash(properties.getBaseUrl())
                 + ensureLeadingSlash(properties.getPassportRoot())
                 + "/redirect/copen-imon/Data";
     }
 
-    private String metaUrl(IminfinReportBootstrap bootstrap) {
+    private String metaUrl(IminfinReportBootstrap bootstrap, String dataUrl) {
         return httpClient.withQuery(
-                baseDataUrl() + "/Meta/ReportModel.json",
+                dataUrl + "/Meta/ReportModel.json",
                 Map.of(
                         "reportId", bootstrap.reportId(),
                         "version", bootstrap.version()
@@ -87,9 +93,9 @@ public class IminfinReportDiscoveryService {
         );
     }
 
-    private String primaryUrl(IminfinReportBootstrap bootstrap) {
+    private String primaryUrl(IminfinReportBootstrap bootstrap, String dataUrl) {
         return httpClient.withQuery(
-                baseDataUrl() + "/Primary/ReportModel.json",
+                dataUrl + "/Primary/ReportModel.json",
                 Map.of(
                         "reportId", bootstrap.reportId(),
                         "version", bootstrap.version()
@@ -216,17 +222,9 @@ public class IminfinReportDiscoveryService {
         return List.copyOf(result);
     }
 
-    private static String ensureLeadingSlash(String value) {
-        return value.startsWith("/") ? value : "/" + value;
-    }
-
-    private static String trimTrailingSlash(String value) {
-        return value.endsWith("/") ? value.substring(0, value.length() - 1) : value;
-    }
-
-    private record CachedDefinition(IminfinReportDefinition definition, Instant loadedAt) {
+    private record CachedDefinition(IminfinReportDefinition definition, Instant discoveredAt) {
         boolean isExpired(IminfinCollectorProperties properties) {
-            return loadedAt.plus(properties.getDiscoveryTtl()).isBefore(Instant.now());
+            return discoveredAt.plus(properties.getDiscoveryTtl()).isBefore(Instant.now());
         }
     }
 }

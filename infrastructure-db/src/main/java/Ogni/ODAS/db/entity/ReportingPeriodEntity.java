@@ -35,10 +35,6 @@ public class ReportingPeriodEntity {
     @Column(name = "\"quarter\"")
     private Integer quarter;
 
-    private LocalDate dateFrom;
-
-    private LocalDate dateTo;
-
     @Column(nullable = false)
     private String label;
 

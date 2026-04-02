@@ -1,6 +1,7 @@
 package Ogni.ODAS.iminfin.model;
 
 import Ogni.ODAS.iminfin.config.IminfinPassportPage;
+import Ogni.ODAS.iminfin.util.IminfinTextNormalizer;
 
 import java.util.List;
 import java.util.Map;
@@ -51,5 +52,19 @@ public record IminfinReportDefinition(
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Unable to resolve detail data source for report " + title));
+    }
+
+    public String resolvePopulationDataSource() {
+        return viewMainDataSources.values().stream()
+                .filter(this::looksLikePopulationDataSource)
+                .findFirst()
+                .or(() -> dataSources().keySet().stream()
+                        .filter(this::looksLikePopulationDataSource)
+                        .findFirst())
+                .orElse("PassportFK_001_001_digestGridData");
+    }
+
+    private boolean looksLikePopulationDataSource(String dsCode) {
+        return dsCode != null && IminfinTextNormalizer.normalize(dsCode).contains(IminfinTextNormalizer.normalize("digestGridData"));
     }
 }
