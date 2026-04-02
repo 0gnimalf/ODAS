@@ -70,8 +70,29 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
                 .map(e -> mapToObservation(e, datasetVersion))
                 .toList();
         List<Observation> saved = observationRepositoryPort.saveAll(observations);
+        List<Observation> requested = filterRequestedObservations(saved, command);
+        if (requested.isEmpty()) {
+            throw new IllegalStateException(
+                    "Collected dataset does not contain requested observation: regionCode="
+                            + command.regionCode()
+                            + ", indicatorGroupCode=" + command.indicatorGroupCode()
+                            + ", indicatorCode=" + command.indicatorCode()
+                            + ", year=" + command.year()
+                            + ", month=" + command.month()
+            );
+        }
 
-        return toResult(saved, false);
+        return toResult(requested, false);
+    }
+
+    private List<Observation> filterRequestedObservations(List<Observation> observations, AnalyzeBudgetDataCommand command) {
+        return observations.stream()
+                .filter(obs -> command.regionCode().equals(obs.regionCode()))
+                .filter(obs -> command.indicatorGroupCode() == obs.indicatorGroupCode())
+                .filter(obs -> command.indicatorCode().equals(obs.indicatorCode()))
+                .filter(obs -> command.year().equals(obs.reportingPeriod().year()))
+                .filter(obs -> command.month().equals(obs.reportingPeriod().month()))
+                .toList();
     }
 
     private DatasetVersion resolveDatasetVersion(CollectedDatasetDto collectedDataset) {

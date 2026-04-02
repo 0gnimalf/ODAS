@@ -13,6 +13,7 @@ import Ogni.ODAS.domain.model.Indicator;
 import Ogni.ODAS.domain.model.Region;
 
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ReferenceCatalogService implements ReferenceCatalogUseCase {
 
@@ -81,6 +82,11 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
 
     private int upsertIndicators(List<CollectedIndicatorDto> indicators) {
         int processed = 0;
+        Set<String> sectionKeys = indicators.stream()
+                .filter(indicator -> indicator.parentCode() != null && !indicator.parentCode().isBlank())
+                .map(indicator -> indicator.groupCode().name() + "::" + indicator.parentCode())
+                .collect(Collectors.toSet());
+
         List<CollectedIndicatorDto> sorted = indicators.stream()
                 .sorted(Comparator
                         .comparing(CollectedIndicatorDto::groupCode)
@@ -106,7 +112,7 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
                     parentId,
                     indicator.level(),
                     indicator.sortOrder(),
-                    indicator.section()
+                    indicator.section() || sectionKeys.contains(indicator.groupCode().name() + "::" + indicator.code())
             ));
             processed++;
         }

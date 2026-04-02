@@ -13,6 +13,7 @@ import Ogni.ODAS.iminfin.config.IminfinPassportPage;
 import Ogni.ODAS.iminfin.http.IminfinHttpClient;
 import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;
 import Ogni.ODAS.iminfin.model.IminfinReportDefinition;
+import Ogni.ODAS.iminfin.util.IminfinTextNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
@@ -131,10 +132,9 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
         JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
         JsonNode dataRows = response.path("data");
         IminfinDataSourceDefinition dataSource = reportDefinition.requireDataSource(dsCode);
-        List<CollectedObservationDto> observations = observationMapper.mapDetailObservationsForCode(
+        List<CollectedObservationDto> observations = observationMapper.mapDetailObservationsForRegion(
                 territoryCode,
                 indicatorGroupCode,
-                command.indicatorCode(),
                 command.year(),
                 command.month(),
                 rootPrefix,
@@ -169,14 +169,13 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
 
         JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
         JsonNode dataRows = response.path("data");
-        List<CollectedObservationDto> observations = observationMapper.mapCreditObservationsForRegion(
-                command.regionCode(),
-                region.name(),
+        List<CollectedObservationDto> observations = observationMapper.mapCreditObservationsForIndicator(
                 command.indicatorCode(),
                 command.year(),
                 command.month(),
                 reportDefinition.requireDataSource("PassportFK_001_005_creditGridData"),
-                dataRows
+                dataRows,
+                regionCodeByNormalizedName()
         );
 
         if (observations.isEmpty()) {
@@ -193,6 +192,16 @@ public class IminfinDirectCollector implements ExternalSourceCollectorPort {
         );
     }
 
+    private Map<String, String> regionCodeByNormalizedName() {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (var region : regionRepositoryPort.findAll()) {
+            if (region.name() == null || region.name().isBlank()) {
+                continue;
+            }
+            result.putIfAbsent(IminfinTextNormalizer.normalize(region.name()), region.code());
+        }
+        return result;
+    }
 
     private String toCreditSourceCode(String indicatorCode) {
         if (indicatorCode == null || !indicatorCode.startsWith("credit/")) {

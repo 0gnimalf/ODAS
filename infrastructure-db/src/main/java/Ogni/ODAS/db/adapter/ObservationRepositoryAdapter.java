@@ -57,7 +57,23 @@ public class ObservationRepositoryAdapter implements ObservationRepositoryPort {
         );
 
         var entities = observations.stream()
-                .map(obs -> mapper.toEntity(obs, datasetVersionEntity))
+                .map(obs -> {
+                    var entity = mapper.toEntity(obs, datasetVersionEntity);
+                    var existing = observationRepository
+                            .findByDatasetVersionIdAndRegionCodeAndIndicatorIndicatorGroupCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonthAndValueKind(
+                                    datasetVersionEntity.getId(),
+                                    obs.regionCode(),
+                                    obs.indicatorGroupCode(),
+                                    obs.indicatorCode(),
+                                    obs.reportingPeriod().year(),
+                                    obs.reportingPeriod().month(),
+                                    obs.valueKind()
+                            );
+                    if (existing != null) {
+                        entity.setId(existing.getId());
+                    }
+                    return entity;
+                })
                 .toList();
 
         return observationRepository.saveAll(entities).stream()

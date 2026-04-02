@@ -23,10 +23,9 @@ public class IminfinObservationMapper {
         this.indicatorTreeParser = indicatorTreeParser;
     }
 
-    public List<CollectedObservationDto> mapDetailObservationsForCode(
+    public List<CollectedObservationDto> mapDetailObservationsForRegion(
             String regionCode,
             IndicatorGroupCode indicatorGroupCode,
-            String requestedIndicatorCode,
             int year,
             int month,
             String rootPrefix,
@@ -37,10 +36,6 @@ public class IminfinObservationMapper {
         Map<String, Integer> columns = columnIndexes(dataSource.columnNames());
 
         for (IminfinParsedIndicatorRow parsed : indicatorTreeParser.parseDetailRows(rootPrefix, dataSource, dataRows)) {
-            if (!requestedIndicatorCode.equals(parsed.code())) {
-                // ToDo доделать логику сохранения всего сбора (взять из предыдущего комита или придумать новую)
-                continue;
-            }
             JsonNode row = parsed.row();
             putIfPresent(result, regionCode, indicatorGroupCode, parsed.code(), year, month, row, columns, "plan", ObservationValueKind.PLAN);
             putIfPresent(result, regionCode, indicatorGroupCode, parsed.code(), year, month, row, columns, "correctConsPlan", ObservationValueKind.REFINED_PLAN_CONSOLIDATED_SUBJECT_BUDGET);
@@ -51,20 +46,18 @@ public class IminfinObservationMapper {
             putIfPresent(result, regionCode, indicatorGroupCode, parsed.code(), year, month, row, columns, "factSubPercent", ObservationValueKind.GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT);
             putIfPresent(result, regionCode, indicatorGroupCode, parsed.code(), year, month, row, columns, "factFOPercent", ObservationValueKind.GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_FEDERAL_DISTRICT);
             putIfPresent(result, regionCode, indicatorGroupCode, parsed.code(), year, month, row, columns, "factRFPercent", ObservationValueKind.GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_RUSSIAN_FEDERATION);
-            return result;
         }
 
         return result;
     }
 
-    public List<CollectedObservationDto> mapCreditObservationsForRegion(
-            String regionCode,
-            String regionName,
+    public List<CollectedObservationDto> mapCreditObservationsForIndicator(
             String requestedIndicatorCode,
             int year,
             int month,
             IminfinDataSourceDefinition dataSource,
-            JsonNode dataRows
+            JsonNode dataRows,
+            Map<String, String> regionCodeByNormalizedName
     ) {
         if (!dataRows.isArray()) {
             throw new IllegalStateException("Unexpected iMinfin credit dataset payload: data must be an array");
@@ -79,8 +72,8 @@ public class IminfinObservationMapper {
                 continue;
             }
             String caption = textCell(row, nameIndex);
-            if (!matchesRegion(regionName, caption)) {
-                // ToDo гипотетически можно мапить первую колонку из названия региона в код и тогда сохранять всю выборку
+            String regionCode = resolveRegionCode(caption, regionCodeByNormalizedName);
+            if (regionCode == null) {
                 continue;
             }
             putIfPresent(result, regionCode, IndicatorGroupCode.CREDIT, requestedIndicatorCode, year, month, row, columns, "1", ObservationValueKind.PLAN);
@@ -88,15 +81,15 @@ public class IminfinObservationMapper {
             putIfPresent(result, regionCode, IndicatorGroupCode.CREDIT, requestedIndicatorCode, year, month, row, columns, "3", ObservationValueKind.REFINED_PLAN_SUBJECT_BUDGET);
             putIfPresent(result, regionCode, IndicatorGroupCode.CREDIT, requestedIndicatorCode, year, month, row, columns, "4", ObservationValueKind.ACTUAL_CONSOLIDATED_SUBJECT_BUDGET);
             putIfPresent(result, regionCode, IndicatorGroupCode.CREDIT, requestedIndicatorCode, year, month, row, columns, "5", ObservationValueKind.ACTUAL_SUBJECT_BUDGET);
-            return result;
         }
-
         return result;
     }
 
-    private boolean matchesRegion(String requestedRegionName, String rowCaption) {
-        return IminfinTextNormalizer.normalize(requestedRegionName)
-                .equals(IminfinTextNormalizer.normalize(rowCaption));
+    private String resolveRegionCode(String rowCaption, Map<String, String> regionCodeByNormalizedName) {
+        if (regionCodeByNormalizedName == null || regionCodeByNormalizedName.isEmpty()) {
+            return null;
+        }
+        return regionCodeByNormalizedName.get(IminfinTextNormalizer.normalize(rowCaption));
     }
 
     private Map<String, Integer> columnIndexes(List<String> columnNames) {
