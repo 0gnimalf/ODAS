@@ -1,11 +1,14 @@
 package Ogni.ODAS.db.adapter;
 
 import Ogni.ODAS.application.port.out.DatasetVersionRepositoryPort;
+import Ogni.ODAS.db.entity.DatasetVersionEntity;
 import Ogni.ODAS.db.mapper.DatasetVersionEntityMapper;
 import Ogni.ODAS.db.repository.JpaDatasetVersionRepository;
+import Ogni.ODAS.db.support.PersistenceReferenceResolver;
 import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import Ogni.ODAS.domain.model.DatasetVersion;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Optional;
 
@@ -13,15 +16,24 @@ import java.util.Optional;
 public class DatasetVersionRepositoryAdapter implements DatasetVersionRepositoryPort {
 
     private final JpaDatasetVersionRepository repository;
+    private final DatasetVersionEntityMapper mapper;
+    private final PersistenceReferenceResolver persistenceResolver;
 
-    public DatasetVersionRepositoryAdapter(JpaDatasetVersionRepository repository) {
+    public DatasetVersionRepositoryAdapter(
+            JpaDatasetVersionRepository repository,
+            DatasetVersionEntityMapper mapper,
+            PersistenceReferenceResolver persistenceResolver
+    ) {
         this.repository = repository;
+        this.mapper = mapper;
+        this.persistenceResolver = persistenceResolver;
     }
 
     @Override
+    @Transactional
     public DatasetVersion save(DatasetVersion datasetVersion) {
-        var saved = repository.save(DatasetVersionEntityMapper.toEntity(datasetVersion));
-        return DatasetVersionEntityMapper.toDomain(saved);
+        DatasetVersionEntity datasetVersionEntity = persistenceResolver.resolveDatasetVersion(datasetVersion);
+        return mapper.toDomain(datasetVersionEntity);
     }
 
     @Override
@@ -31,6 +43,6 @@ public class DatasetVersionRepositoryAdapter implements DatasetVersionRepository
             SourceSystemCode sourceSystem
     ) {
         return repository.findByDatasetCodeAndVersionLabelAndSourceSystem(datasetCode, versionLabel, sourceSystem)
-                .map(DatasetVersionEntityMapper::toDomain);
+                .map(mapper::toDomain);
     }
 }

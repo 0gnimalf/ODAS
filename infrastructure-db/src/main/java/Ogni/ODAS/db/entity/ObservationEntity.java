@@ -2,15 +2,11 @@ package Ogni.ODAS.db.entity;
 
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.math.BigDecimal;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 @Entity
 @Table(name = "observation", schema = "a",
         uniqueConstraints = {

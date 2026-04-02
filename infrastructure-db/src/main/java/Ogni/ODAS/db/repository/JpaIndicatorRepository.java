@@ -11,5 +11,11 @@ public interface JpaIndicatorRepository extends JpaRepository<IndicatorEntity, L
 
     Optional<IndicatorEntity> findByCodeAndIndicatorGroupCode(String code, IndicatorGroupCode groupCode);
 
+    Optional<IndicatorEntity> findByCodeAndIndicatorGroupCodeAndParentId(
+            String code,
+            IndicatorGroupCode groupCode,
+            Long parentId
+    );
+
     List<IndicatorEntity> findAllByIndicatorGroupCodeOrderBySortOrderAscNameAsc(IndicatorGroupCode groupCode);
 }

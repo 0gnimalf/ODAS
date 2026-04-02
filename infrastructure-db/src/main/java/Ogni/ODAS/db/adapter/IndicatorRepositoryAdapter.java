@@ -7,6 +7,7 @@ import Ogni.ODAS.db.repository.JpaIndicatorRepository;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Indicator;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Optional;
@@ -15,38 +16,39 @@ import java.util.Optional;
 public class IndicatorRepositoryAdapter implements IndicatorRepositoryPort {
 
     private final JpaIndicatorRepository repository;
+    private final IndicatorEntityMapper mapper;
 
-    public IndicatorRepositoryAdapter(JpaIndicatorRepository repository) {
+    public IndicatorRepositoryAdapter(JpaIndicatorRepository repository, IndicatorEntityMapper mapper) {
         this.repository = repository;
+        this.mapper = mapper;
     }
 
     @Override
+    @Transactional
     public Indicator save(Indicator indicator) {
+        IndicatorEntity parent = resolveParent(indicator.parentId());
         IndicatorEntity entity = indicator.id() == null
-                ? repository.findByCodeAndIndicatorGroupCode(indicator.code(), indicator.groupCode()).orElseGet(IndicatorEntity::new)
-                : repository.findById(indicator.id()).orElseGet(IndicatorEntity::new);
+                ? repository.findByCodeAndIndicatorGroupCodeAndParentId(
+                indicator.code(),
+                indicator.groupCode(),
+                indicator.parentId()
+        ).orElseGet(() -> mapper.toNewEntity(indicator, parent))
+                : repository.findById(indicator.id()).orElseGet(() -> mapper.toNewEntity(indicator, parent));
 
-        entity.setCode(indicator.code());
-        entity.setName(indicator.name());
-        entity.setIndicatorGroupCode(indicator.groupCode());
-        entity.setLevel(indicator.level());
-        entity.setSortOrder(indicator.sortOrder());
-        entity.setSection(indicator.section());
-        entity.setParent(resolveParent(indicator.parentId()));
-
-        return IndicatorEntityMapper.toDomain(repository.save(entity));
+        mapper.copyToEntity(indicator, parent, entity);
+        return mapper.toDomain(repository.save(entity));
     }
 
     @Override
     public Optional<Indicator> findByCodeAndGroupCode(String code, IndicatorGroupCode groupCode) {
         return repository.findByCodeAndIndicatorGroupCode(code, groupCode)
-                .map(IndicatorEntityMapper::toDomain);
+                .map(mapper::toDomain);
     }
 
     @Override
     public List<Indicator> findAllByGroupCode(IndicatorGroupCode groupCode) {
         return repository.findAllByIndicatorGroupCodeOrderBySortOrderAscNameAsc(groupCode).stream()
-                .map(IndicatorEntityMapper::toDomain)
+                .map(mapper::toDomain)
                 .toList();
     }
 

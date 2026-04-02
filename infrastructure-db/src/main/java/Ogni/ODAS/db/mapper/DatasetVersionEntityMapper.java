@@ -2,13 +2,12 @@ package Ogni.ODAS.db.mapper;
 
 import Ogni.ODAS.db.entity.DatasetVersionEntity;
 import Ogni.ODAS.domain.model.DatasetVersion;
+import org.springframework.stereotype.Component;
 
-public final class DatasetVersionEntityMapper {
+@Component
+public class DatasetVersionEntityMapper {
 
-    private DatasetVersionEntityMapper() {
-    }
-
-    public static DatasetVersion toDomain(DatasetVersionEntity entity) {
+    public DatasetVersion toDomain(DatasetVersionEntity entity) {
         return new DatasetVersion(
                 entity.getId(),
                 entity.getDatasetCode(),
@@ -19,14 +18,17 @@ public final class DatasetVersionEntityMapper {
         );
     }
 
-    public static DatasetVersionEntity toEntity(DatasetVersion domain) {
-        return new DatasetVersionEntity(
-                domain.id(),
-                domain.datasetCode(),
-                domain.versionLabel(),
-                domain.sourceSystem(),
-                domain.collectedAt(),
-                domain.current()
-        );
+    public DatasetVersionEntity toNewEntity(DatasetVersion domain) {
+        DatasetVersionEntity entity = new DatasetVersionEntity();
+        copyToEntity(domain, entity);
+        return entity;
+    }
+
+    public void copyToEntity(DatasetVersion domain, DatasetVersionEntity entity) {
+        entity.setDatasetCode(domain.datasetCode());
+        entity.setVersionLabel(domain.versionLabel());
+        entity.setSourceSystem(domain.sourceSystem());
+        entity.setCollectedAt(domain.collectedAt());
+        entity.setCurrent(domain.current());
     }
 }

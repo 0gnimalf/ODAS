@@ -45,7 +45,7 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     @Override
     public List<AnalysisResultDto> analyze(AnalyzeBudgetDataCommand command) {
         if (!command.forceRefresh()) {
-            List<Observation> cached = observationRepositoryPort.findAllByRegionIndicatorAndPeriod(
+            List<Observation> cached = observationRepositoryPort.findAllByRegionAndIndicatorAndPeriod(
                     command.regionCode(),
                     command.indicatorGroupCode(),
                     command.indicatorCode(),

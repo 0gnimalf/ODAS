@@ -7,7 +7,7 @@ import java.util.List;
 
 public interface ObservationRepositoryPort {
 
-    List<Observation> findAllByRegionIndicatorAndPeriod(
+    List<Observation> findAllByRegionAndIndicatorAndPeriod(
             String regionCode,
             IndicatorGroupCode indicatorGroupCode,
             String indicatorCode,

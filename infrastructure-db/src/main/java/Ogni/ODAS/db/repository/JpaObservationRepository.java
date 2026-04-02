@@ -6,6 +6,7 @@ import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Optional;
 
 public interface JpaObservationRepository extends JpaRepository<ObservationEntity, Long> {
 
@@ -17,7 +18,7 @@ public interface JpaObservationRepository extends JpaRepository<ObservationEntit
             Integer month
     );
 
-    ObservationEntity findByDatasetVersionIdAndRegionCodeAndIndicatorIndicatorGroupCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonthAndValueKind(
+    Optional<ObservationEntity> findByDatasetVersionIdAndRegionCodeAndIndicatorIndicatorGroupCodeAndIndicatorCodeAndReportingPeriodYearAndReportingPeriodMonthAndValueKind(
             Long datasetVersionId,
             String regionCode,
             IndicatorGroupCode indicatorGroupCode,

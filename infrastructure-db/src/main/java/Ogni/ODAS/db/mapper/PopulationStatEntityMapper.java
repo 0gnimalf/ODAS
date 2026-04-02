@@ -1,19 +1,47 @@
 package Ogni.ODAS.db.mapper;
 
 import Ogni.ODAS.db.entity.PopulationStatEntity;
+import Ogni.ODAS.db.entity.RegionEntity;
+import Ogni.ODAS.db.entity.ReportingPeriodEntity;
 import Ogni.ODAS.domain.model.PopulationStat;
+import org.springframework.stereotype.Component;
 
-public final class PopulationStatEntityMapper {
+@Component
+public class PopulationStatEntityMapper {
 
-    private PopulationStatEntityMapper() {
+    private final ReportingPeriodEntityMapper reportingPeriodMapper;
+
+    public PopulationStatEntityMapper(ReportingPeriodEntityMapper reportingPeriodMapper) {
+        this.reportingPeriodMapper = reportingPeriodMapper;
     }
 
-    public static PopulationStat toDomain(PopulationStatEntity entity) {
+    public PopulationStat toDomain(PopulationStatEntity entity) {
         return new PopulationStat(
                 entity.getId(),
                 entity.getRegion().getCode(),
-                ReportingPeriodEntityMapper.toDomain(entity.getReportingPeriod()),
+                reportingPeriodMapper.toDomain(entity.getReportingPeriod()),
                 entity.getPopulationValue()
         );
+    }
+
+    public PopulationStatEntity toNewEntity(
+            PopulationStat domain,
+            RegionEntity region,
+            ReportingPeriodEntity reportingPeriod
+    ) {
+        PopulationStatEntity entity = new PopulationStatEntity();
+        copyToEntity(domain, region, reportingPeriod, entity);
+        return entity;
+    }
+
+    public void copyToEntity(
+            PopulationStat domain,
+            RegionEntity region,
+            ReportingPeriodEntity reportingPeriod,
+            PopulationStatEntity entity
+    ) {
+        entity.setRegion(region);
+        entity.setReportingPeriod(reportingPeriod);
+        entity.setPopulationValue(domain.populationValue());
     }
 }

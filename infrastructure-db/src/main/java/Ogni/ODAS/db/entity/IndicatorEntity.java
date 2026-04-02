@@ -9,7 +9,7 @@ import lombok.Data;
 @Table(name = "indicator", schema = "a",
         uniqueConstraints = {
                 @UniqueConstraint(
-                        name = "uk_indicator_group_parent_code",
+                        name = "uk_indicator_group_code_parent",
                         columnNames = {"indicatorGroupCode", "code", "parent_id"}
                 )
         },

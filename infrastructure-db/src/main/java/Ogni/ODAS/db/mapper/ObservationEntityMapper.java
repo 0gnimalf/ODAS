@@ -1,97 +1,63 @@
 package Ogni.ODAS.db.mapper;
 
 import Ogni.ODAS.db.entity.*;
-import Ogni.ODAS.db.repository.JpaIndicatorRepository;
-import Ogni.ODAS.db.repository.JpaRegionRepository;
-import Ogni.ODAS.db.repository.JpaReportingPeriodRepository;
-import Ogni.ODAS.domain.enumtype.FederalDistrictCode;
-import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Observation;
 import org.springframework.stereotype.Component;
 
 @Component
 public class ObservationEntityMapper {
 
-    private final JpaRegionRepository regionRepository;
-    private final JpaIndicatorRepository indicatorRepository;
-    private final JpaReportingPeriodRepository reportingPeriodRepository;
+    private final DatasetVersionEntityMapper datasetVersionMapper;
+    private final ReportingPeriodEntityMapper reportingPeriodMapper;
 
     public ObservationEntityMapper(
-            JpaRegionRepository regionRepository,
-            JpaIndicatorRepository indicatorRepository,
-            JpaReportingPeriodRepository reportingPeriodRepository
+            DatasetVersionEntityMapper datasetVersionMapper,
+            ReportingPeriodEntityMapper reportingPeriodMapper
     ) {
-        this.regionRepository = regionRepository;
-        this.indicatorRepository = indicatorRepository;
-        this.reportingPeriodRepository = reportingPeriodRepository;
+        this.datasetVersionMapper = datasetVersionMapper;
+        this.reportingPeriodMapper = reportingPeriodMapper;
     }
 
     public Observation toDomain(ObservationEntity entity) {
         return new Observation(
                 entity.getId(),
-                DatasetVersionEntityMapper.toDomain(entity.getDatasetVersion()),
+                datasetVersionMapper.toDomain(entity.getDatasetVersion()),
                 entity.getRegion().getCode(),
                 entity.getIndicator().getIndicatorGroupCode(),
                 entity.getIndicator().getCode(),
-                ReportingPeriodEntityMapper.toDomain(entity.getReportingPeriod()),
+                reportingPeriodMapper.toDomain(entity.getReportingPeriod()),
                 entity.getValueKind(),
                 entity.getValue(),
                 entity.isCumulative()
         );
     }
 
-    public ObservationEntity toEntity(Observation domain, DatasetVersionEntity datasetVersionEntity) {
-        return new ObservationEntity(
-                domain.id(),
-                datasetVersionEntity,
-                resolveRegion(domain.regionCode()),
-                resolveIndicator(domain.indicatorCode(), domain.indicatorGroupCode()),
-                resolveReportingPeriod(domain),
-                domain.valueKind(),
-                domain.value(),
-                domain.cumulative()
-        );
+    public ObservationEntity toNewEntity(
+            Observation domain,
+            DatasetVersionEntity datasetVersion,
+            RegionEntity region,
+            IndicatorEntity indicator,
+            ReportingPeriodEntity reportingPeriod
+    ) {
+        ObservationEntity entity = new ObservationEntity();
+        copyToEntity(domain, datasetVersion, region, indicator, reportingPeriod, entity);
+        return entity;
     }
 
-    private RegionEntity resolveRegion(String regionCode) {
-        return regionRepository.findByCode(regionCode)
-                .orElseGet(() -> {
-                    RegionEntity region = new RegionEntity();
-                    region.setCode(regionCode);
-                    region.setName("Заглушка|" + regionCode);
-                    region.setFederalDistrictCode(FederalDistrictCode.NONE);
-                    return regionRepository.save(region);
-                });
-    }
-
-    private IndicatorEntity resolveIndicator(String indicatorCode, IndicatorGroupCode groupCode) {
-        return indicatorRepository.findByCodeAndIndicatorGroupCode(indicatorCode, groupCode)
-                .orElseGet(() -> {
-                    IndicatorEntity indicator = new IndicatorEntity();
-                    indicator.setCode(indicatorCode);
-                    indicator.setName("Заглушка|" + indicatorCode);
-                    indicator.setIndicatorGroupCode(groupCode == null ? IndicatorGroupCode.OTHER : groupCode);
-                    return indicatorRepository.save(indicator);
-                });
-    }
-
-    private ReportingPeriodEntity resolveReportingPeriod(Observation domain) {
-        var p = domain.reportingPeriod();
-
-        return reportingPeriodRepository.findByPeriodTypeAndYearAndMonthAndQuarter(
-                        p.type(),
-                        p.year(),
-                        p.month(),
-                        p.quarter()
-                )
-                .orElseGet(() -> {
-                    ReportingPeriodEntity period = new ReportingPeriodEntity();
-                    period.setPeriodType(p.type());
-                    period.setYear(p.year());
-                    period.setMonth(p.month());
-                    period.setQuarter(p.quarter());
-                    period.setLabel(p.label());
-                    return reportingPeriodRepository.save(period);
-                });
+    public void copyToEntity(
+            Observation domain,
+            DatasetVersionEntity datasetVersion,
+            RegionEntity region,
+            IndicatorEntity indicator,
+            ReportingPeriodEntity reportingPeriod,
+            ObservationEntity entity
+    ) {
+        entity.setDatasetVersion(datasetVersion);
+        entity.setRegion(region);
+        entity.setIndicator(indicator);
+        entity.setReportingPeriod(reportingPeriod);
+        entity.setValueKind(domain.valueKind());
+        entity.setValue(domain.value());
+        entity.setCumulative(domain.cumulative());
     }
 }

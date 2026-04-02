@@ -2,15 +2,11 @@ package Ogni.ODAS.db.entity;
 
 import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
 import lombok.Data;
-import lombok.NoArgsConstructor;
 
 import java.time.OffsetDateTime;
 
 @Data
-@NoArgsConstructor
-@AllArgsConstructor
 @Entity
 @Table(name = "dataset_version", schema = "a",
         uniqueConstraints = {
