@@ -60,7 +60,7 @@ public class IminfinIndicatorTreeParser {
                     caption.trim(),
                     level,
                     sortOrder,
-                    isSection(row, columns),
+                    false, // isSection(row, columns),
                     row
             ));
         }
@@ -92,20 +92,20 @@ public class IminfinIndicatorTreeParser {
         return code;
     }
 
-    private boolean isSection(JsonNode row, Map<String, Integer> columns) {
-        for (Map.Entry<String, Integer> entry : columns.entrySet()) {
-            String name = entry.getKey();
-            if ("name".equals(name) || "level".equals(name)) {
-                continue;
-            }
-
-            String value = IminfinJsonTableHelper.textCell(row, entry.getValue());
-            if (value != null && !value.isBlank()) {
-                return false;
-            }
-        }
-        return true;
-    }
+//    private boolean isSection(JsonNode row, Map<String, Integer> columns) {
+//        for (Map.Entry<String, Integer> entry : columns.entrySet()) {
+//            String name = entry.getKey();
+//            if ("name".equals(name) || "level".equals(name)) {
+//                continue;
+//            }
+//
+//            String value = IminfinJsonTableHelper.textCell(row, entry.getValue());
+//            if (value != null && !value.isBlank()) {
+//                return false;
+//            }
+//        }
+//        return true;
+//    }
 
     private int intCell(JsonNode row, Integer index, int defaultValue) {
         String text = IminfinJsonTableHelper.textCell(row, index);

@@ -1,9 +1,11 @@
 package Ogni.ODAS.boot.config;
 
 import Ogni.ODAS.application.command.AnalyzeBudgetDataCommand;
+import Ogni.ODAS.application.command.SyncIndicatorsCommand;
 import Ogni.ODAS.application.dto.CollectedDatasetDto;
+import Ogni.ODAS.application.dto.CollectedIndicatorDto;
 import Ogni.ODAS.application.dto.CollectedObservationDto;
-import Ogni.ODAS.application.dto.CollectedReferenceCatalogDto;
+import Ogni.ODAS.application.dto.CollectedRegionDto;
 import Ogni.ODAS.application.port.out.ExternalPopulationCollectorPort;
 import Ogni.ODAS.application.port.out.ExternalReferenceCollectorPort;
 import Ogni.ODAS.application.port.out.ExternalSourceCollectorPort;
@@ -41,6 +43,16 @@ public class CollectorStubConfig {
 
     @Bean
     public ExternalReferenceCollectorPort externalReferenceCollectorPort() {
-        return () -> new CollectedReferenceCatalogDto(List.of(), List.of());
+        return new ExternalReferenceCollectorPort() {
+            @Override
+            public List<CollectedRegionDto> collectRegions() {
+                return List.of();
+            }
+
+            @Override
+            public List<CollectedIndicatorDto> collectIndicators(SyncIndicatorsCommand command) {
+                return List.of();
+            }
+        };
     }
 }

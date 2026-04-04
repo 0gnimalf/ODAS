@@ -1,12 +1,12 @@
 package Ogni.ODAS.boot.api;
 
+import Ogni.ODAS.application.command.SyncIndicatorsCommand;
 import Ogni.ODAS.application.dto.ReferenceSyncResultDto;
 import Ogni.ODAS.application.port.in.ReferenceCatalogUseCase;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Indicator;
 import Ogni.ODAS.domain.model.Region;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -23,9 +23,17 @@ public class ReferenceCatalogController {
         this.referenceCatalogUseCase = referenceCatalogUseCase;
     }
 
-    @GetMapping("/sync")
-    public ReferenceSyncResultDto sync() {
-        return referenceCatalogUseCase.sync();
+    @GetMapping("/sync/regions")
+    public ReferenceSyncResultDto syncRegions() {
+        return referenceCatalogUseCase.syncRegions();
+    }
+
+    @GetMapping("/sync/indicators")
+    public ReferenceSyncResultDto syncIndicators(
+            @RequestParam(name = "year") Integer year,
+            @RequestParam(name = "groupCode", required = false) IndicatorGroupCode groupCode
+    ) {
+        return referenceCatalogUseCase.syncIndicators(new SyncIndicatorsCommand(groupCode, year));
     }
 
     @GetMapping("/regions")

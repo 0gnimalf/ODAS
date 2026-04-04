@@ -1,7 +1,7 @@
 package Ogni.ODAS.application.service;
 
+import Ogni.ODAS.application.command.SyncIndicatorsCommand;
 import Ogni.ODAS.application.dto.CollectedIndicatorDto;
-import Ogni.ODAS.application.dto.CollectedReferenceCatalogDto;
 import Ogni.ODAS.application.dto.CollectedRegionDto;
 import Ogni.ODAS.application.dto.ReferenceSyncResultDto;
 import Ogni.ODAS.application.port.in.ReferenceCatalogUseCase;
@@ -32,19 +32,22 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
     }
 
     @Override
-    public ReferenceSyncResultDto sync() {
-        CollectedReferenceCatalogDto collected = externalReferenceCollectorPort.collectReferenceCatalog();
+    public ReferenceSyncResultDto syncRegions() {
+        List<CollectedRegionDto> regions = externalReferenceCollectorPort.collectRegions();
+        int regionsProcessed = upsertRegions(regions);
+        return new ReferenceSyncResultDto(regionsProcessed, 0, 0, 0, 0, 0);
+    }
 
-        int regionsProcessed = upsertRegions(collected.regions());
-        int indicatorsProcessed = upsertIndicators(collected.indicators());
+    @Override
+    public ReferenceSyncResultDto syncIndicators(SyncIndicatorsCommand command) {
+        validateIndicatorsCommand(command);
 
-        Map<IndicatorGroupCode, Integer> counts = new EnumMap<>(IndicatorGroupCode.class);
-        for (CollectedIndicatorDto indicator : collected.indicators()) {
-            counts.merge(indicator.groupCode(), 1, Integer::sum);
-        }
+        List<CollectedIndicatorDto> indicators = externalReferenceCollectorPort.collectIndicators(command);
+        int indicatorsProcessed = upsertIndicators(indicators);
+        Map<IndicatorGroupCode, Integer> counts = countIndicatorsByGroup(indicators);
 
         return new ReferenceSyncResultDto(
-                regionsProcessed,
+                0,
                 indicatorsProcessed,
                 counts.getOrDefault(IndicatorGroupCode.INCOME, 0),
                 counts.getOrDefault(IndicatorGroupCode.OUTCOME, 0),
@@ -63,6 +66,19 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
     @Override
     public List<Indicator> getIndicators(IndicatorGroupCode groupCode) {
         return indicatorRepositoryPort.findAllByGroupCode(groupCode);
+    }
+
+    private void validateIndicatorsCommand(SyncIndicatorsCommand command) {
+        Objects.requireNonNull(command, "Indicators sync command must not be null");
+        Objects.requireNonNull(command.year(), "Indicators sync year must not be null");
+    }
+
+    private Map<IndicatorGroupCode, Integer> countIndicatorsByGroup(List<CollectedIndicatorDto> indicators) {
+        Map<IndicatorGroupCode, Integer> counts = new EnumMap<>(IndicatorGroupCode.class);
+        for (CollectedIndicatorDto indicator : indicators) {
+            counts.merge(indicator.groupCode(), 1, Integer::sum);
+        }
+        return counts;
     }
 
     private int upsertRegions(List<CollectedRegionDto> regions) {
