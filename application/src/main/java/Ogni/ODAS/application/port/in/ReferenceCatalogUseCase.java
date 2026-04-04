@@ -3,7 +3,7 @@ package Ogni.ODAS.application.port.in;
 import Ogni.ODAS.application.command.SyncIndicatorsCommand;
 import Ogni.ODAS.application.dto.ReferenceSyncResultDto;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
-import Ogni.ODAS.domain.model.Indicator;
+import Ogni.ODAS.domain.model.IndicatorYearEntry;
 import Ogni.ODAS.domain.model.Region;
 
 import java.util.List;
@@ -16,5 +16,5 @@ public interface ReferenceCatalogUseCase {
 
     List<Region> getRegions();
 
-    List<Indicator> getIndicators(IndicatorGroupCode groupCode);
+    List<IndicatorYearEntry> getIndicators(IndicatorGroupCode groupCode, Integer year);
 }

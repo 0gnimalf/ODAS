@@ -11,28 +11,18 @@ public class IndicatorEntityMapper {
         return new Indicator(
                 entity.getId(),
                 entity.getCode(),
-                entity.getName(),
-                entity.getIndicatorGroupCode(),
-                entity.getParent() == null ? null : entity.getParent().getId(),
-                entity.getLevel(),
-                entity.getSortOrder(),
-                entity.isSection()
+                entity.getIndicatorGroupCode()
         );
     }
 
-    public IndicatorEntity toNewEntity(Indicator domain, IndicatorEntity parent) {
+    public IndicatorEntity toNewEntity(Indicator domain) {
         IndicatorEntity entity = new IndicatorEntity();
-        copyToEntity(domain, parent, entity);
+        copyToEntity(domain, entity);
         return entity;
     }
 
-    public void copyToEntity(Indicator domain, IndicatorEntity parent, IndicatorEntity entity) {
+    public void copyToEntity(Indicator domain, IndicatorEntity entity) {
         entity.setCode(domain.code());
-        entity.setName(domain.name());
         entity.setIndicatorGroupCode(domain.groupCode());
-        entity.setParent(parent);
-        entity.setLevel(domain.level());
-        entity.setSortOrder(domain.sortOrder());
-        entity.setSection(domain.section());
     }
 }

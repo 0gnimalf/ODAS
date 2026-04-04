@@ -4,6 +4,7 @@ import Ogni.ODAS.db.entity.IndicatorEntity;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import org.springframework.data.jpa.repository.JpaRepository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -11,11 +12,5 @@ public interface JpaIndicatorRepository extends JpaRepository<IndicatorEntity, L
 
     Optional<IndicatorEntity> findByCodeAndIndicatorGroupCode(String code, IndicatorGroupCode groupCode);
 
-    Optional<IndicatorEntity> findByCodeAndIndicatorGroupCodeAndParentId(
-            String code,
-            IndicatorGroupCode groupCode,
-            Long parentId
-    );
-
-    List<IndicatorEntity> findAllByIndicatorGroupCodeOrderBySortOrderAscNameAsc(IndicatorGroupCode groupCode);
+    List<IndicatorEntity> findAllByIdIn(Collection<Long> ids);
 }

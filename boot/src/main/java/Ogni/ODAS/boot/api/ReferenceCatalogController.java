@@ -4,7 +4,7 @@ import Ogni.ODAS.application.command.SyncIndicatorsCommand;
 import Ogni.ODAS.application.dto.ReferenceSyncResultDto;
 import Ogni.ODAS.application.port.in.ReferenceCatalogUseCase;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
-import Ogni.ODAS.domain.model.Indicator;
+import Ogni.ODAS.domain.model.IndicatorYearEntry;
 import Ogni.ODAS.domain.model.Region;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -42,7 +42,10 @@ public class ReferenceCatalogController {
     }
 
     @GetMapping("/indicators")
-    public List<Indicator> indicators(@RequestParam(name = "groupCode") IndicatorGroupCode groupCode) {
-        return referenceCatalogUseCase.getIndicators(groupCode);
+    public List<IndicatorYearEntry> indicators(
+            @RequestParam(name = "groupCode") IndicatorGroupCode groupCode,
+            @RequestParam(name = "year") Integer year
+    ) {
+        return referenceCatalogUseCase.getIndicators(groupCode, year);
     }
 }

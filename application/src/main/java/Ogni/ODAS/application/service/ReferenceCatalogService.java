@@ -10,6 +10,7 @@ import Ogni.ODAS.application.port.out.IndicatorRepositoryPort;
 import Ogni.ODAS.application.port.out.RegionRepositoryPort;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Indicator;
+import Ogni.ODAS.domain.model.IndicatorYearEntry;
 import Ogni.ODAS.domain.model.Region;
 
 import java.util.*;
@@ -43,7 +44,8 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
         validateIndicatorsCommand(command);
 
         List<CollectedIndicatorDto> indicators = externalReferenceCollectorPort.collectIndicators(command);
-        int indicatorsProcessed = upsertIndicators(indicators);
+        Set<IndicatorGroupCode> targetGroups = resolveTargetGroups(command);
+        int indicatorsProcessed = replaceIndicatorYearEntries(indicators, command.year(), targetGroups);
         Map<IndicatorGroupCode, Integer> counts = countIndicatorsByGroup(indicators);
 
         return new ReferenceSyncResultDto(
@@ -64,13 +66,27 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
     }
 
     @Override
-    public List<Indicator> getIndicators(IndicatorGroupCode groupCode) {
-        return indicatorRepositoryPort.findAllByGroupCode(groupCode);
+    public List<IndicatorYearEntry> getIndicators(IndicatorGroupCode groupCode, Integer year) {
+        Objects.requireNonNull(groupCode, "Indicator group code must not be null");
+        Objects.requireNonNull(year, "Indicator year must not be null");
+        return indicatorRepositoryPort.findAllByGroupCodeAndYear(groupCode, year);
     }
 
     private void validateIndicatorsCommand(SyncIndicatorsCommand command) {
         Objects.requireNonNull(command, "Indicators sync command must not be null");
         Objects.requireNonNull(command.year(), "Indicators sync year must not be null");
+    }
+
+    private Set<IndicatorGroupCode> resolveTargetGroups(SyncIndicatorsCommand command) {
+        if (command.groupCode() != null) {
+            return EnumSet.of(command.groupCode());
+        }
+        return EnumSet.of(
+                IndicatorGroupCode.INCOME,
+                IndicatorGroupCode.OUTCOME,
+                IndicatorGroupCode.CREDIT,
+                IndicatorGroupCode.FIN_SOURCE
+        );
     }
 
     private Map<IndicatorGroupCode, Integer> countIndicatorsByGroup(List<CollectedIndicatorDto> indicators) {
@@ -96,42 +112,111 @@ public class ReferenceCatalogService implements ReferenceCatalogUseCase {
         return processed;
     }
 
-    private int upsertIndicators(List<CollectedIndicatorDto> indicators) {
-        int processed = 0;
-        Set<String> sectionKeys = indicators.stream()
+    private int replaceIndicatorYearEntries(
+            List<CollectedIndicatorDto> indicators,
+            Integer year,
+            Set<IndicatorGroupCode> targetGroups
+    ) {
+        Map<IndicatorKey, Indicator> indicatorsByKey = indicators.isEmpty()
+                ? Map.of()
+                : upsertIndicatorMasters(indicators);
+        Map<IndicatorGroupCode, List<IndicatorYearEntry>> entriesByGroup = indicators.isEmpty()
+                ? Map.of()
+                : buildYearEntries(indicators, indicatorsByKey, year);
+
+        for (IndicatorGroupCode groupCode : targetGroups) {
+            indicatorRepositoryPort.replaceYearEntries(
+                    groupCode,
+                    year,
+                    entriesByGroup.getOrDefault(groupCode, List.of())
+            );
+        }
+        return indicators.size();
+    }
+
+    private Map<IndicatorKey, Indicator> upsertIndicatorMasters(List<CollectedIndicatorDto> indicators) {
+        Map<IndicatorKey, Indicator> result = new LinkedHashMap<>();
+
+        indicators.stream()
+                .map(dto -> new IndicatorKey(dto.groupCode(), dto.code()))
+                .distinct()
+                .sorted(Comparator
+                        .comparing(IndicatorKey::groupCode)
+                        .thenComparing(IndicatorKey::code))
+                .forEach(key -> {
+                    Indicator saved = indicatorRepositoryPort.findByCodeAndGroupCode(key.code(), key.groupCode())
+                            .orElseGet(() -> indicatorRepositoryPort.save(new Indicator(null, key.code(), key.groupCode())));
+                    result.put(key, saved);
+                });
+
+        return result;
+    }
+
+    private Map<IndicatorGroupCode, List<IndicatorYearEntry>> buildYearEntries(
+            List<CollectedIndicatorDto> indicators,
+            Map<IndicatorKey, Indicator> indicatorsByKey,
+            Integer year
+    ) {
+        Set<IndicatorKey> sectionKeys = indicators.stream()
                 .filter(indicator -> indicator.parentCode() != null && !indicator.parentCode().isBlank())
-                .map(indicator -> indicator.groupCode().name() + "::" + indicator.parentCode())
+                .map(indicator -> new IndicatorKey(indicator.groupCode(), indicator.parentCode()))
                 .collect(Collectors.toSet());
 
-        List<CollectedIndicatorDto> sorted = indicators.stream()
-                .sorted(Comparator
-                        .comparing(CollectedIndicatorDto::groupCode)
-                        .thenComparing(dto -> dto.level() == null ? Integer.MAX_VALUE : dto.level())
-                        .thenComparing(dto -> dto.sortOrder() == null ? Integer.MAX_VALUE : dto.sortOrder())
-                        .thenComparing(CollectedIndicatorDto::code))
-                .toList();
+        Map<IndicatorGroupCode, List<CollectedIndicatorDto>> sourceByGroup = indicators.stream()
+                .collect(Collectors.groupingBy(CollectedIndicatorDto::groupCode, () -> new EnumMap<>(IndicatorGroupCode.class), Collectors.toList()));
 
-        for (CollectedIndicatorDto indicator : sorted) {
-            Optional<Indicator> existing = indicatorRepositoryPort.findByCodeAndGroupCode(indicator.code(), indicator.groupCode());
-            Long parentId = null;
-            if (indicator.parentCode() != null && !indicator.parentCode().isBlank()) {
-                parentId = indicatorRepositoryPort.findByCodeAndGroupCode(indicator.parentCode(), indicator.groupCode())
-                        .map(Indicator::id)
-                        .orElse(null);
-            }
-
-            indicatorRepositoryPort.save(new Indicator(
-                    existing.map(Indicator::id).orElse(null),
-                    indicator.code(),
-                    indicator.name(),
-                    indicator.groupCode(),
-                    parentId,
-                    indicator.level(),
-                    indicator.sortOrder(),
-                    indicator.section() || sectionKeys.contains(indicator.groupCode().name() + "::" + indicator.code())
-            ));
-            processed++;
+        Map<IndicatorGroupCode, List<IndicatorYearEntry>> result = new EnumMap<>(IndicatorGroupCode.class);
+        for (Map.Entry<IndicatorGroupCode, List<CollectedIndicatorDto>> entry : sourceByGroup.entrySet()) {
+            List<IndicatorYearEntry> yearEntries = entry.getValue().stream()
+                    .sorted(Comparator
+                            .comparing(CollectedIndicatorDto::groupCode)
+                            .thenComparing(dto -> dto.level() == null ? Integer.MAX_VALUE : dto.level())
+                            .thenComparing(dto -> dto.sortOrder() == null ? Integer.MAX_VALUE : dto.sortOrder())
+                            .thenComparing(CollectedIndicatorDto::code))
+                    .map(dto -> toYearEntry(dto, indicatorsByKey, sectionKeys, year))
+                    .toList();
+            result.put(entry.getKey(), yearEntries);
         }
-        return processed;
+        return result;
+    }
+
+    private IndicatorYearEntry toYearEntry(
+            CollectedIndicatorDto indicator,
+            Map<IndicatorKey, Indicator> indicatorsByKey,
+            Set<IndicatorKey> sectionKeys,
+            Integer year
+    ) {
+        IndicatorKey key = new IndicatorKey(indicator.groupCode(), indicator.code());
+        Indicator masterIndicator = requireIndicator(indicatorsByKey, key);
+
+        Long parentIndicatorId = null;
+        if (indicator.parentCode() != null && !indicator.parentCode().isBlank()) {
+            IndicatorKey parentKey = new IndicatorKey(indicator.groupCode(), indicator.parentCode());
+            parentIndicatorId = requireIndicator(indicatorsByKey, parentKey).id();
+        }
+
+        return new IndicatorYearEntry(
+                null,
+                masterIndicator.id(),
+                masterIndicator.code(),
+                masterIndicator.groupCode(),
+                year,
+                indicator.name(),
+                parentIndicatorId,
+                indicator.level(),
+                indicator.sortOrder(),
+                indicator.section() || sectionKeys.contains(key)
+        );
+    }
+
+    private Indicator requireIndicator(Map<IndicatorKey, Indicator> indicatorsByKey, IndicatorKey key) {
+        Indicator indicator = indicatorsByKey.get(key);
+        if (indicator == null) {
+            throw new IllegalStateException("Indicator master not found for key: " + key.groupCode() + ":" + key.code());
+        }
+        return indicator;
+    }
+
+    private record IndicatorKey(IndicatorGroupCode groupCode, String code) {
     }
 }

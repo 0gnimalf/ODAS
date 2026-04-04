@@ -61,7 +61,6 @@ public class PersistenceReferenceResolver {
                 .orElseGet(() -> {
                     IndicatorEntity indicator = new IndicatorEntity();
                     indicator.setCode(indicatorCode);
-                    indicator.setName(PLACEHOLDER_PREFIX + indicatorCode);
                     indicator.setIndicatorGroupCode(safeGroupCode);
                     return indicatorRepository.save(indicator);
                 });

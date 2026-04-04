@@ -5,11 +5,6 @@ import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 public record Indicator(
         Long id,
         String code,
-        String name,
-        IndicatorGroupCode groupCode,
-        Long parentId,
-        Integer level,
-        Integer sortOrder,
-        boolean section
+        IndicatorGroupCode groupCode
 ) {
 }
