@@ -158,11 +158,13 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
                     observation.reportingPeriod().year()
             ).map(populationRepositoryPort::save);
         }
-
+        Long populationValue;
         if (population.isEmpty() || population.get().populationValue() == null || population.get().populationValue() == 0) {
-            return null;
+            populationValue = null;
         }
-        Long populationValue = population.get().populationValue();
+        else {
+            populationValue = population.get().populationValue();
+        }
         return observations.stream()
                 .map(obs -> toDto(obs, populationValue, fromCache))
                 .toList();
@@ -190,7 +192,9 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
         if (!isPerCapitaApplicable(observation)) {
             return null;
         }
-
+        if (populationValue == null) {
+            return BigDecimal.ZERO;
+        }
         return observation.value()
                 .divide(BigDecimal.valueOf(populationValue), 6, RoundingMode.HALF_UP);
     }
