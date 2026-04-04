@@ -146,13 +146,30 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     }
 
     private List<AnalysisResultDto> toResult(List<Observation> observations, boolean fromCache) {
+        Observation observation = observations.getFirst();
+        Optional<PopulationStat> population = populationRepositoryPort.findByRegionAndYear(
+                observation.regionCode(),
+                observation.reportingPeriod().year()
+        );
+
+        if (population.isEmpty()) {
+            population = externalPopulationCollectorPort.collect(
+                    observation.regionCode(),
+                    observation.reportingPeriod().year()
+            ).map(populationRepositoryPort::save);
+        }
+
+        if (population.isEmpty() || population.get().populationValue() == null || population.get().populationValue() == 0) {
+            return null;
+        }
+        Long populationValue = population.get().populationValue();
         return observations.stream()
-                .map(obs -> toDto(obs, fromCache))
+                .map(obs -> toDto(obs, populationValue, fromCache))
                 .toList();
     }
 
-    private AnalysisResultDto toDto(Observation observation, boolean fromCache) {
-        BigDecimal perCapita = calculatePerCapita(observation);
+    private AnalysisResultDto toDto(Observation observation, Long populationValue, boolean fromCache) {
+        BigDecimal perCapita = calculatePerCapita(observation, populationValue);
         return new AnalysisResultDto(
                 observation.regionCode(),
                 observation.indicatorGroupCode(),
@@ -169,28 +186,13 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
         );
     }
 
-    private BigDecimal calculatePerCapita(Observation observation) {
+    private BigDecimal calculatePerCapita(Observation observation, Long populationValue) {
         if (!isPerCapitaApplicable(observation)) {
-            return null;
-        }
-        Optional<PopulationStat> population = populationRepositoryPort.findByRegionAndYear(
-                observation.regionCode(),
-                observation.reportingPeriod().year()
-        );
-
-        if (population.isEmpty()) {
-            population = externalPopulationCollectorPort.collect(
-                    observation.regionCode(),
-                    observation.reportingPeriod().year()
-            ).map(populationRepositoryPort::save);
-        }
-
-        if (population.isEmpty() || population.get().populationValue() == null || population.get().populationValue() == 0) {
             return null;
         }
 
         return observation.value()
-                .divide(BigDecimal.valueOf(population.get().populationValue()), 6, RoundingMode.HALF_UP);
+                .divide(BigDecimal.valueOf(populationValue), 6, RoundingMode.HALF_UP);
     }
 
     private boolean isPerCapitaApplicable(Observation observation) {

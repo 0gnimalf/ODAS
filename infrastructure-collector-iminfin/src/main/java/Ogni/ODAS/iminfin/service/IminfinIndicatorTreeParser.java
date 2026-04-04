@@ -1,6 +1,7 @@
 package Ogni.ODAS.iminfin.service;
 
 import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;
+import Ogni.ODAS.iminfin.util.IminfinJsonTableHelper;
 import Ogni.ODAS.iminfin.util.IminfinTextNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -19,7 +20,7 @@ public class IminfinIndicatorTreeParser {
             throw new IllegalStateException("Unexpected iMinfin dataset payload: data must be an array");
         }
 
-        Map<String, Integer> columns = columnIndexes(dataSource.columnNames());
+        Map<String, Integer> columns = IminfinJsonTableHelper.columnIndexes(dataSource.columnNames());
         Integer nameIndex = columns.get("name");
         if (nameIndex == null) {
             throw new IllegalStateException("Detail dataset does not contain 'name' column");
@@ -36,13 +37,13 @@ public class IminfinIndicatorTreeParser {
                 continue;
             }
 
-            String caption = textCell(row, nameIndex);
+            String caption = IminfinJsonTableHelper.textCell(row, nameIndex);
             if (caption == null || caption.isBlank()) {
                 continue;
             }
 
             sortOrder++;
-            int level = levelIndex == null ? 1 : intCell(row, levelIndex, 1);
+            int level = intCell(row, levelIndex, 1);
             if (level < 1) {
                 level = 1;
             }
@@ -91,54 +92,32 @@ public class IminfinIndicatorTreeParser {
         return code;
     }
 
-    private Map<String, Integer> columnIndexes(List<String> columnNames) {
-        Map<String, Integer> result = new HashMap<>();
-        for (int i = 0; i < columnNames.size(); i++) {
-            result.put(columnNames.get(i), i);
-        }
-        return result;
-    }
-
     private boolean isSection(JsonNode row, Map<String, Integer> columns) {
         for (Map.Entry<String, Integer> entry : columns.entrySet()) {
             String name = entry.getKey();
             if ("name".equals(name) || "level".equals(name)) {
                 continue;
             }
-            if (entry.getValue() >= row.size()) {
-                continue;
-            }
-            JsonNode node = row.get(entry.getValue());
-            if (node != null && !node.isNull() && !node.asText().isBlank()) {
+
+            String value = IminfinJsonTableHelper.textCell(row, entry.getValue());
+            if (value != null && !value.isBlank()) {
                 return false;
             }
         }
         return true;
     }
 
-    private String textCell(JsonNode row, int index) {
-        if (index >= row.size()) {
-            return null;
-        }
-        JsonNode node = row.get(index);
-        return node == null || node.isNull() ? null : node.asText();
-    }
-
-    private int intCell(JsonNode row, int index, int defaultValue) {
-        if (index >= row.size()) {
-            return defaultValue;
-        }
-        JsonNode node = row.get(index);
-        if (node == null || node.isNull()) {
-            return defaultValue;
-        }
-        if (node.isInt()) {
-            return node.asInt();
-        }
-        String text = node.asText();
+    private int intCell(JsonNode row, Integer index, int defaultValue) {
+        String text = IminfinJsonTableHelper.textCell(row, index);
         if (text == null || text.isBlank()) {
+            JsonNode node = index == null || index < 0 || index >= row.size() ? null : row.get(index);
+            return node != null && node.isInt() ? node.asInt() : defaultValue;
+        }
+
+        try {
+            return Integer.parseInt(text);
+        } catch (NumberFormatException ex) {
             return defaultValue;
         }
-        return Integer.parseInt(text);
     }
 }

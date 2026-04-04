@@ -6,15 +6,12 @@ import Ogni.ODAS.application.dto.CollectedRegionDto;
 import Ogni.ODAS.application.port.out.ExternalReferenceCollectorPort;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.iminfin.config.IminfinPassportPage;
-import Ogni.ODAS.iminfin.http.IminfinHttpClient;
 import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;
+import Ogni.ODAS.iminfin.model.IminfinLoadedData;
 import Ogni.ODAS.iminfin.model.IminfinReportDefinition;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
 
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -23,21 +20,26 @@ import java.util.Map;
 @Component
 public class IminfinReferenceCollector implements ExternalReferenceCollectorPort {
 
-    private static final DateTimeFormatter IMINFIN_PERIOD_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    private static final String DEFAULT_TERRITORY_PARAMETER = "territory";
+    private static final String TERRITORY_DATA_SOURCE = "TerritoryOnlySubject";
+    private static final String TERRITORY_PERIOD_PARAMETER = "TERRITORIES_paramPeriod";
+    private static final String TERRITORY_PERIOD_VALUE = "2014-05-28T00:00:00.000Z";
+    private static final String OUTCOME_TYPES_DATA_SOURCE = "PassportFK_002_002_outcomesTypesFix";
+    private static final String CREDIT_PARAMETERS_DATA_SOURCE = "PassportFK_001_005_paramCreditsData_fixed";
 
     private final IminfinReportDiscoveryService discoveryService;
-    private final IminfinHttpClient httpClient;
+    private final IminfinReportDataLoader reportDataLoader;
     private final IminfinIndicatorTreeParser indicatorTreeParser;
     private final IminfinFederalDistrictResolver federalDistrictResolver;
 
     public IminfinReferenceCollector(
             IminfinReportDiscoveryService discoveryService,
-            IminfinHttpClient httpClient,
+            IminfinReportDataLoader reportDataLoader,
             IminfinIndicatorTreeParser indicatorTreeParser,
             IminfinFederalDistrictResolver federalDistrictResolver
     ) {
         this.discoveryService = discoveryService;
-        this.httpClient = httpClient;
+        this.reportDataLoader = reportDataLoader;
         this.indicatorTreeParser = indicatorTreeParser;
         this.federalDistrictResolver = federalDistrictResolver;
     }
@@ -55,14 +57,13 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
 
     private List<CollectedRegionDto> collectRegions() {
         IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.INCOMES_DETAIL);
-        Map<String, Object> query = new LinkedHashMap<>();
-        query.put("uuid", reportDefinition.uuid());
-        query.put("dataVersion", reportDefinition.dataVersion());
-        query.put("dsCode", "TerritoryOnlySubject");
-        query.put("TERRITORIES_paramPeriod", "2014-05-28T00:00:00.000Z");
+        IminfinLoadedData loadedData = reportDataLoader.loadData(
+                reportDefinition,
+                TERRITORY_DATA_SOURCE,
+                Map.of(TERRITORY_PERIOD_PARAMETER, TERRITORY_PERIOD_VALUE)
+        );
 
-        JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
-        JsonNode data = response.path("data");
+        JsonNode data = loadedData.dataRows();
         if (!data.isArray()) {
             throw new IllegalStateException("Unexpected territory response for report " + reportDefinition.title());
         }
@@ -72,10 +73,9 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
             if (!row.isArray() || row.size() < 2) {
                 continue;
             }
-            String code = row.get(0).asText();
-            String fullName = row.get(1).asText();
-            regions.put(code, fullName);
+            regions.put(row.get(0).asText(), row.get(1).asText());
         }
+
         return regions.entrySet().stream()
                 .map(entry -> new CollectedRegionDto(
                         entry.getKey(),
@@ -86,57 +86,25 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
     }
 
     private List<CollectedIndicatorDto> collectIncomeIndicators() {
-        IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.INCOMES_DETAIL);
-        String period = discoveryService.loadLatestPeriod(reportDefinition);
-        String dsCode = reportDefinition.resolveDetailDataSource(discoveryService.loadHelperPeriod(reportDefinition, period));
-        JsonNode data = loadDetailData(reportDefinition, dsCode, reportDefinition.defaultValue("territory"), period, null);
-        return indicatorTreeParser.parseDetailRows("income", reportDefinition.requireDataSource(dsCode), data).stream()
-                .map(row -> new CollectedIndicatorDto(
-                        row.code(),
-                        row.caption(),
-                        IndicatorGroupCode.INCOME,
-                        row.parentCode(),
-                        row.level(),
-                        row.sortOrder(),
-                        row.section()
-                ))
-                .toList();
+        return collectTreeIndicators(
+                IminfinPassportPage.INCOMES_DETAIL,
+                IndicatorGroupCode.INCOME,
+                "income",
+                null
+        );
     }
 
     private List<CollectedIndicatorDto> collectOutcomeIndicators() {
         IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.OUTCOMES_DETAIL);
-        String period = discoveryService.loadLatestPeriod(reportDefinition);
+        IminfinDataSourceDefinition types = reportDefinition.requireDataSource(OUTCOME_TYPES_DATA_SOURCE);
         List<CollectedIndicatorDto> result = new ArrayList<>();
 
-        IminfinDataSourceDefinition types = reportDefinition.requireDataSource("PassportFK_002_002_outcomesTypesFix");
         for (List<String> row : types.fixedData()) {
-            if (row.size() < 2) {
+            OutcomeTypeSpec spec = toOutcomeTypeSpec(row);
+            if (spec == null) {
                 continue;
             }
-            String caption = row.get(0);
-            String code = row.get(1);
-            String prefix = switch (code) {
-                case "2" -> "outcome/rzpr";
-                case "3" -> "outcome/kvr";
-                default -> null;
-            };
-            if (prefix == null) {
-                continue;
-            }
-
-            String dsCode = reportDefinition.resolveDetailDataSource(discoveryService.loadHelperPeriod(reportDefinition, period));
-            JsonNode data = loadDetailData(reportDefinition, dsCode, reportDefinition.defaultValue("territory"), period, Integer.valueOf(code));
-            result.addAll(indicatorTreeParser.parseDetailRows(prefix, reportDefinition.requireDataSource(dsCode), data).stream()
-                    .map(parsed -> new CollectedIndicatorDto(
-                            parsed.code(),
-                            parsed.caption(),
-                            IndicatorGroupCode.OUTCOME,
-                            parsed.parentCode(),
-                            parsed.level(),
-                            parsed.sortOrder(),
-                            parsed.section()
-                    ))
-                    .toList());
+            result.addAll(collectTreeIndicators(reportDefinition, IndicatorGroupCode.OUTCOME, spec.prefix(), spec.outcomesType()));
         }
 
         return result;
@@ -144,7 +112,7 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
 
     private List<CollectedIndicatorDto> collectCreditIndicators() {
         IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.CREDITS_COMPARE);
-        IminfinDataSourceDefinition dataSource = reportDefinition.requireDataSource("PassportFK_001_005_paramCreditsData_fixed");
+        IminfinDataSourceDefinition dataSource = reportDefinition.requireDataSource(CREDIT_PARAMETERS_DATA_SOURCE);
         List<CollectedIndicatorDto> result = new ArrayList<>();
         String currentParentCode = null;
         int sortOrder = 0;
@@ -153,6 +121,7 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
             if (row.size() < 2) {
                 continue;
             }
+
             String caption = row.get(0);
             String sourceCode = row.get(1);
             String code = "credit/" + sourceCode;
@@ -162,6 +131,7 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
                 currentParentCode = code;
             }
             sortOrder++;
+
             result.add(new CollectedIndicatorDto(
                     code,
                     cleanCaption,
@@ -176,47 +146,65 @@ public class IminfinReferenceCollector implements ExternalReferenceCollectorPort
     }
 
     private List<CollectedIndicatorDto> collectFinSourceIndicators() {
-        IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.FIN_SOURCES_DETAIL);
+        return collectTreeIndicators(
+                IminfinPassportPage.FIN_SOURCES_DETAIL,
+                IndicatorGroupCode.FIN_SOURCE,
+                "fin-source",
+                null
+        );
+    }
+
+    private List<CollectedIndicatorDto> collectTreeIndicators(
+            IminfinPassportPage page,
+            IndicatorGroupCode groupCode,
+            String rootPrefix,
+            Integer outcomesType
+    ) {
+        IminfinReportDefinition reportDefinition = discoveryService.discover(page);
+        return collectTreeIndicators(reportDefinition, groupCode, rootPrefix, outcomesType);
+    }
+
+    private List<CollectedIndicatorDto> collectTreeIndicators(
+            IminfinReportDefinition reportDefinition,
+            IndicatorGroupCode groupCode,
+            String rootPrefix,
+            Integer outcomesType
+    ) {
         String period = discoveryService.loadLatestPeriod(reportDefinition);
-        String dsCode = reportDefinition.resolveDetailDataSource(discoveryService.loadHelperPeriod(reportDefinition, period));
-        JsonNode data = loadDetailData(reportDefinition, dsCode, reportDefinition.defaultValue("territory"), period, null);
-        return indicatorTreeParser.parseDetailRows("fin-source", reportDefinition.requireDataSource(dsCode), data).stream()
-                .map(row -> new CollectedIndicatorDto(
-                        row.code(),
-                        row.caption(),
-                        IndicatorGroupCode.FIN_SOURCE,
-                        row.parentCode(),
-                        row.level(),
-                        row.sortOrder(),
-                        row.section()
+        String territoryCode = reportDefinition.defaultValue(DEFAULT_TERRITORY_PARAMETER);
+        IminfinLoadedData loadedData = reportDataLoader.loadDetailData(
+                reportDefinition,
+                territoryCode,
+                period,
+                outcomesType
+        );
+
+        return indicatorTreeParser.parseDetailRows(rootPrefix, loadedData.dataSource(), loadedData.dataRows()).stream()
+                .map(parsed -> new CollectedIndicatorDto(
+                        parsed.code(),
+                        parsed.caption(),
+                        groupCode,
+                        parsed.parentCode(),
+                        parsed.level(),
+                        parsed.sortOrder(),
+                        parsed.section()
                 ))
                 .toList();
     }
 
-    private JsonNode loadDetailData(
-            IminfinReportDefinition reportDefinition,
-            String dsCode,
-            String territoryCode,
-            String period,
-            Integer outcomesType
-    ) {
-        Map<String, Object> query = new LinkedHashMap<>();
-        query.put("uuid", reportDefinition.uuid());
-        query.put("dataVersion", reportDefinition.dataVersion());
-        query.put("dsCode", dsCode);
-        query.put("territory", territoryCode);
-        query.put("paramPeriod", period);
-        if (outcomesType != null) {
-            query.put("PassportFK_002_002_outcomesType", outcomesType);
+    private OutcomeTypeSpec toOutcomeTypeSpec(List<String> row) {
+        if (row.size() < 2) {
+            return null;
         }
 
-        return httpClient.getJson(discoveryService.dataUrl(query)).path("data");
+        String sourceCode = row.get(1);
+        return switch (sourceCode) {
+            case "2" -> new OutcomeTypeSpec(2, "outcome/rzpr");
+            case "3" -> new OutcomeTypeSpec(3, "outcome/kvr");
+            default -> null;
+        };
     }
 
-    private String toIminfinPeriod(int year, int month) {
-        return LocalDate.of(year, month, 1)
-                .atStartOfDay()
-                .atOffset(ZoneOffset.UTC)
-                .format(IMINFIN_PERIOD_FORMAT);
+    private record OutcomeTypeSpec(int outcomesType, String prefix) {
     }
 }

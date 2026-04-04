@@ -5,36 +5,31 @@ import Ogni.ODAS.domain.enumtype.PeriodType;
 import Ogni.ODAS.domain.model.PopulationStat;
 import Ogni.ODAS.domain.model.ReportingPeriod;
 import Ogni.ODAS.iminfin.config.IminfinPassportPage;
-import Ogni.ODAS.iminfin.http.IminfinHttpClient;
-import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;
+import Ogni.ODAS.iminfin.model.IminfinLoadedData;
 import Ogni.ODAS.iminfin.model.IminfinReportDefinition;
+import Ogni.ODAS.iminfin.util.IminfinJsonTableHelper;
+import Ogni.ODAS.iminfin.util.IminfinPeriodFormatter;
 import Ogni.ODAS.iminfin.util.IminfinTextNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Service;
 
-import java.math.BigDecimal;
-import java.time.LocalDate;
-import java.time.ZoneOffset;
-import java.time.format.DateTimeFormatter;
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 @Service
 public class IminfinPopulationCollector implements ExternalPopulationCollectorPort {
 
-    private static final DateTimeFormatter IMINFIN_PERIOD_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'");
+    private static final String POPULATION_LABEL = "численность населения (чел.)";
 
     private final IminfinReportDiscoveryService discoveryService;
-    private final IminfinHttpClient httpClient;
+    private final IminfinReportDataLoader reportDataLoader;
 
     public IminfinPopulationCollector(
             IminfinReportDiscoveryService discoveryService,
-            IminfinHttpClient httpClient
+            IminfinReportDataLoader reportDataLoader
     ) {
         this.discoveryService = discoveryService;
-        this.httpClient = httpClient;
+        this.reportDataLoader = reportDataLoader;
     }
 
     @Override
@@ -44,24 +39,20 @@ public class IminfinPopulationCollector implements ExternalPopulationCollectorPo
         }
 
         IminfinReportDefinition reportDefinition = discoveryService.discover(IminfinPassportPage.PASSPORT_ROOT);
-        String dsCode = reportDefinition.resolvePopulationDataSource();
-        String period = toIminfinPeriod(year, 1);
+        IminfinLoadedData loadedData = reportDataLoader.loadData(
+                reportDefinition,
+                reportDefinition.resolvePopulationDataSource(),
+                Map.of(
+                        "territory", regionCode,
+                        "paramPeriod", IminfinPeriodFormatter.format(year, 1)
+                )
+        );
 
-        Map<String, Object> query = new LinkedHashMap<>();
-        query.put("uuid", reportDefinition.uuid());
-        query.put("dataVersion", reportDefinition.dataVersion());
-        query.put("dsCode", dsCode);
-        query.put("territory", regionCode);
-        query.put("paramPeriod", period);
-
-        JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
-        JsonNode dataRows = response.path("data");
-        if (!dataRows.isArray() || dataRows.isEmpty()) {
+        if (!loadedData.dataRows().isArray() || loadedData.dataRows().isEmpty()) {
             return Optional.empty();
         }
 
-        IminfinDataSourceDefinition dataSourceDefinition = reportDefinition.dataSources().get(dsCode);
-        Long population = extractPopulationValue(dataSourceDefinition, dataRows);
+        Long population = extractPopulationValue(loadedData);
         if (population == null || population <= 0) {
             return Optional.empty();
         }
@@ -81,82 +72,26 @@ public class IminfinPopulationCollector implements ExternalPopulationCollectorPo
         ));
     }
 
-    private Long extractPopulationValue(IminfinDataSourceDefinition dataSourceDefinition, JsonNode dataRows) {
-        Map<String, Integer> columns = columnIndexes(dataSourceDefinition == null ? List.of() : dataSourceDefinition.columnNames());
+    private Long extractPopulationValue(IminfinLoadedData loadedData) {
+        Map<String, Integer> columns = IminfinJsonTableHelper.columnIndexes(loadedData.dataSource().columnNames());
         Integer nameIndex = columns.get("name");
+        Integer populationIndex = columns.get("prevYearFact");
 
-        for (JsonNode row : dataRows) {
+        for (JsonNode row : loadedData.dataRows()) {
             if (!row.isArray() || row.isEmpty()) {
                 continue;
             }
-            String label = textCell(row, nameIndex);
-            String normalizedLabel = IminfinTextNormalizer.normalize(label);
 
-            if (!normalizedLabel.isBlank() && normalizedLabel.equals("численность населения (чел.)")) {
-                Long value = longCell(row, columns);
-                if (value == null) {
-                    continue;
-                }
+            String label = IminfinJsonTableHelper.textCell(row, nameIndex);
+            if (!POPULATION_LABEL.equals(IminfinTextNormalizer.normalize(label))) {
+                continue;
+            }
+
+            Long value = IminfinJsonTableHelper.longCell(row, populationIndex);
+            if (value != null) {
                 return value;
             }
         }
         return null;
-    }
-
-    private Long longCell(JsonNode row, Map<String, Integer> columns) {
-            Integer index = columns.get("prevYearFact");
-            if (index != null) {
-                BigDecimal value = decimalCell(row, index);
-                if (value != null) {
-                    return value.longValue();
-                }
-            }
-            return null;
-    }
-
-    private Map<String, Integer> columnIndexes(List<String> columnNames) {
-        Map<String, Integer> result = new LinkedHashMap<>();
-        for (int i = 0; i < columnNames.size(); i++) {
-            result.put(columnNames.get(i), i);
-        }
-        return result;
-    }
-
-    private String textCell(JsonNode row, int index) {
-        if (index < 0 || index >= row.size()) {
-            return null;
-        }
-        JsonNode node = row.get(index);
-        return node == null || node.isNull() ? null : node.asText();
-    }
-
-    private BigDecimal decimalCell(JsonNode row, int index) {
-        if (index < 0 || index >= row.size()) {
-            return null;
-        }
-        JsonNode node = row.get(index);
-        if (node == null || node.isNull()) {
-            return null;
-        }
-        if (node.isNumber()) {
-            return node.decimalValue();
-        }
-        String text = node.asText();
-        if (text == null || text.isBlank()) {
-            return null;
-        }
-        String normalized = text.replace(" ", "").replace(",", ".");
-        try {
-            return new BigDecimal(normalized);
-        } catch (NumberFormatException ex) {
-            return null;
-        }
-    }
-
-    private String toIminfinPeriod(int year, int month) {
-        return LocalDate.of(year, month, 1)
-                .atStartOfDay()
-                .atOffset(ZoneOffset.UTC)
-                .format(IMINFIN_PERIOD_FORMAT);
     }
 }
