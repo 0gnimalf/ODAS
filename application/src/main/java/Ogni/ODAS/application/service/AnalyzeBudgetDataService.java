@@ -6,6 +6,7 @@ import Ogni.ODAS.application.dto.CollectedDatasetDto;
 import Ogni.ODAS.application.dto.CollectedObservationDto;
 import Ogni.ODAS.application.port.in.AnalyzeBudgetDataUseCase;
 import Ogni.ODAS.application.port.out.*;
+import Ogni.ODAS.domain.enumtype.ObservationValueType;
 import Ogni.ODAS.domain.enumtype.PeriodType;
 import Ogni.ODAS.domain.model.DatasetVersion;
 import Ogni.ODAS.domain.model.Observation;
@@ -169,6 +170,9 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
     }
 
     private BigDecimal calculatePerCapita(Observation observation) {
+        if (!isPerCapitaApplicable(observation)) {
+            return null;
+        }
         Optional<PopulationStat> population = populationRepositoryPort.findByRegionAndYear(
                 observation.regionCode(),
                 observation.reportingPeriod().year()
@@ -187,5 +191,12 @@ public class AnalyzeBudgetDataService implements AnalyzeBudgetDataUseCase {
 
         return observation.value()
                 .divide(BigDecimal.valueOf(population.get().populationValue()), 6, RoundingMode.HALF_UP);
+    }
+
+    private boolean isPerCapitaApplicable(Observation observation) {
+        return observation != null
+                && observation.value() != null
+                && observation.valueKind() != null
+                && observation.valueKind().getObservationValueType() == ObservationValueType.ABSOLUTE;
     }
 }
