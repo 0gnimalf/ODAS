@@ -2,63 +2,52 @@ package Ogni.ODAS.db.entity;
 
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.math.BigDecimal;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
-@Table(name = "observation", schema = "a",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_observation_dataset_region_indicator_period_kind",
-                        columnNames = {
-                                "dataset_version_id",
-                                "region_id",
-                                "indicator_id",
-                                "reporting_period_id",
-                                "value_kind"
-                        }
-                )
-        },
+@Table(name = "observation",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_observation_region_id_indicator_year_entry_id_period_id_observation_value_kind",
+                columnNames = {"region_id", "indicator_year_entry_id", "period_id", "observation_value_kind"}
+        ),
         indexes = {
-                @Index(
-                        name = "idx_observation_region_indicator_period",
-                        columnList = "region_id, indicator_id, reporting_period_id"
-                ),
-                @Index(
-                        name = "idx_observation_dataset_version",
-                        columnList = "dataset_version_id"
-                ),
-                @Index(
-                        name = "idx_observation_value_kind",
-                        columnList = "value_kind"
-                )
-        })
+                @Index(name = "idx_observation_dataset_collection_id", columnList = "dataset_collection_id"),
+                @Index(name = "idx_observation_region_id_period_id", columnList = "region_id, period_id"),
+                @Index(name = "idx_observation_indicator_year_entry_id_period_id", columnList = "indicator_year_entry_id, period_id"),
+                @Index(name = "idx_observation_period_id", columnList = "period_id")
+        }
+)
 public class ObservationEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "observation_seq_gen")
+    @SequenceGenerator(name = "observation_seq_gen", sequenceName = "observation_seq", allocationSize = 1)
     private Long id;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    private DatasetVersionEntity datasetVersion;
+    @Column(name = "dataset_collection_id", nullable = false)
+    private Long datasetCollectionId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    private RegionEntity region;
+    @Column(name = "region_id", nullable = false)
+    private Long regionId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    private IndicatorEntity indicator;
+    @Column(name = "indicator_year_entry_id", nullable = false)
+    private Long indicatorYearEntryId;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    private ReportingPeriodEntity reportingPeriod;
+    @Column(name = "period_id", nullable = false)
+    private Long periodId;
 
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private ObservationValueKind valueKind;
+    @Column(name = "observation_value_kind", nullable = false, length = 128)
+    private ObservationValueKind observationValueKind;
 
-    @Column(name = "\"value\"", nullable = false)
+    @Column(name = "value", nullable = false, precision = 24, scale = 8)
     private BigDecimal value;
-
-    @Column(name = "is_cumulative", nullable = false)
-    private boolean cumulative;
 }

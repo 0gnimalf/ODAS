@@ -2,30 +2,32 @@ package Ogni.ODAS.db.entity;
 
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
-@Table(name = "indicator", schema = "a",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_indicator_group_code_code",
-                        columnNames = {"indicatorGroupCode", "code"}
-                )
-        },
-        indexes = {
-                @Index(name = "idx_indicator_group_code", columnList = "indicatorGroupCode")
-        })
+@Table(name = "indicator",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_indicator_name_indicator_group_code",
+                columnNames = {"name", "indicator_group_code"}
+        )
+)
 public class IndicatorEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "indicator_seq_gen")
+    @SequenceGenerator(name = "indicator_seq_gen", sequenceName = "indicator_seq", allocationSize = 1)
     private Long id;
 
-    @Column(nullable = false)
-    @Lob
-    private String code;
+    @Column(name = "name", nullable = false, length = 1000)
+    private String name;
 
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
+    @Column(name = "indicator_group_code", nullable = false, length = 32)
     private IndicatorGroupCode indicatorGroupCode;
 }

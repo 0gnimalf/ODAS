@@ -1,63 +1,40 @@
 package Ogni.ODAS.db.mapper;
 
-import Ogni.ODAS.db.entity.*;
+import Ogni.ODAS.db.entity.ObservationEntity;
 import Ogni.ODAS.domain.model.Observation;
-import org.springframework.stereotype.Component;
 
-@Component
-public class ObservationEntityMapper {
+public final class ObservationEntityMapper {
 
-    private final DatasetVersionEntityMapper datasetVersionMapper;
-    private final ReportingPeriodEntityMapper reportingPeriodMapper;
-
-    public ObservationEntityMapper(
-            DatasetVersionEntityMapper datasetVersionMapper,
-            ReportingPeriodEntityMapper reportingPeriodMapper
-    ) {
-        this.datasetVersionMapper = datasetVersionMapper;
-        this.reportingPeriodMapper = reportingPeriodMapper;
+    private ObservationEntityMapper() {
     }
 
-    public Observation toDomain(ObservationEntity entity) {
-        return new Observation(
-                entity.getId(),
-                datasetVersionMapper.toDomain(entity.getDatasetVersion()),
-                entity.getRegion().getCode(),
-                entity.getIndicator().getIndicatorGroupCode(),
-                entity.getIndicator().getCode(),
-                reportingPeriodMapper.toDomain(entity.getReportingPeriod()),
-                entity.getValueKind(),
-                entity.getValue(),
-                entity.isCumulative()
+    public static ObservationEntity toEntity(Observation observation) {
+        if (observation == null) {
+            return null;
+        }
+        return new ObservationEntity(
+                observation.id(),
+                observation.datasetCollectionId(),
+                observation.regionId(),
+                observation.indicatorYearEntryId(),
+                observation.periodId(),
+                observation.observationValueKind(),
+                observation.value()
         );
     }
 
-    public ObservationEntity toNewEntity(
-            Observation domain,
-            DatasetVersionEntity datasetVersion,
-            RegionEntity region,
-            IndicatorEntity indicator,
-            ReportingPeriodEntity reportingPeriod
-    ) {
-        ObservationEntity entity = new ObservationEntity();
-        copyToEntity(domain, datasetVersion, region, indicator, reportingPeriod, entity);
-        return entity;
-    }
-
-    public void copyToEntity(
-            Observation domain,
-            DatasetVersionEntity datasetVersion,
-            RegionEntity region,
-            IndicatorEntity indicator,
-            ReportingPeriodEntity reportingPeriod,
-            ObservationEntity entity
-    ) {
-        entity.setDatasetVersion(datasetVersion);
-        entity.setRegion(region);
-        entity.setIndicator(indicator);
-        entity.setReportingPeriod(reportingPeriod);
-        entity.setValueKind(domain.valueKind());
-        entity.setValue(domain.value());
-        entity.setCumulative(domain.cumulative());
+    public static Observation toDomain(ObservationEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return new Observation(
+                entity.getId(),
+                entity.getDatasetCollectionId(),
+                entity.getRegionId(),
+                entity.getIndicatorYearEntryId(),
+                entity.getPeriodId(),
+                entity.getObservationValueKind(),
+                entity.getValue()
+        );
     }
 }

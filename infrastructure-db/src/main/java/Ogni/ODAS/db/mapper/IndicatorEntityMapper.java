@@ -2,27 +2,30 @@ package Ogni.ODAS.db.mapper;
 
 import Ogni.ODAS.db.entity.IndicatorEntity;
 import Ogni.ODAS.domain.model.Indicator;
-import org.springframework.stereotype.Component;
 
-@Component
-public class IndicatorEntityMapper {
+public final class IndicatorEntityMapper {
 
-    public Indicator toDomain(IndicatorEntity entity) {
-        return new Indicator(
-                entity.getId(),
-                entity.getCode(),
-                entity.getIndicatorGroupCode()
+    private IndicatorEntityMapper() {
+    }
+
+    public static IndicatorEntity toEntity(Indicator domain) {
+        if (domain == null) {
+            return null;
+        }
+        return new IndicatorEntity(
+                domain.id(),
+                domain.name(),
+                domain.indicatorGroupCode()
         );
     }
 
-    public IndicatorEntity toNewEntity(Indicator domain) {
-        IndicatorEntity entity = new IndicatorEntity();
-        copyToEntity(domain, entity);
-        return entity;
-    }
-
-    public void copyToEntity(Indicator domain, IndicatorEntity entity) {
-        entity.setCode(domain.code());
-        entity.setIndicatorGroupCode(domain.groupCode());
+    public static Indicator toDomain(IndicatorEntity entity) {
+        if (entity == null) {
+            return null;
+        }
+        return new Indicator(
+                entity.getId(),
+                entity.getName(),
+                entity.getIndicatorGroupCode());
     }
 }

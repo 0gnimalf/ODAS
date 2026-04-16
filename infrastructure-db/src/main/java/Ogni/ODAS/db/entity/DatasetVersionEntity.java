@@ -2,41 +2,37 @@ package Ogni.ODAS.db.entity;
 
 import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.AllArgsConstructor;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 import java.time.OffsetDateTime;
 
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@AllArgsConstructor
 @Entity
-@Table(name = "dataset_version", schema = "a",
-        uniqueConstraints = {
-                @UniqueConstraint(
-                        name = "uk_dataset_version_code_label_source",
-                        columnNames = {"datasetCode", "versionLabel", "sourceSystem"}
-                )
-        },
-        indexes = {
-                @Index(name = "idx_dataset_version_current", columnList = "is_current"),
-                @Index(name = "idx_dataset_version_collected_at", columnList = "collectedAt")
-        })
+@Table(name = "dataset_version",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_dataset_version_source_system_code_external_title_external_date_modified",
+                columnNames = {"source_system_code", "external_title", "external_date_modified"}
+        )
+)
 public class DatasetVersionEntity {
     @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "dataset_version_seq_gen")
+    @SequenceGenerator(name = "dataset_version_seq_gen", sequenceName = "dataset_version_seq", allocationSize = 1)
     private Long id;
 
-    @Column(nullable = false, length = 100)
-    private String datasetCode;
-
-    @Column(nullable = false, length = 100)
-    private String versionLabel;
-
-    @Column(nullable = false)
     @Enumerated(EnumType.STRING)
-    private SourceSystemCode sourceSystem;
+    @Column(name = "source_system_code", nullable = false, length = 64)
+    private SourceSystemCode sourceSystemCode;
 
-    @Column(nullable = false)
-    private OffsetDateTime collectedAt;
+    @Column(name = "external_title", nullable = false, length = 500)
+    private String externalTitle;
 
-    @Column(name = "is_current", nullable = false)
-    private boolean current;
+    @Column(name = "external_date_modified", nullable = false)
+    private OffsetDateTime externalDateModified;
 }
