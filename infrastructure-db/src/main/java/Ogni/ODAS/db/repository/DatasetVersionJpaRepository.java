@@ -12,6 +12,6 @@ public interface DatasetVersionJpaRepository extends JpaRepository<DatasetVersio
     Optional<DatasetVersionEntity> findBySourceSystemCodeAndExternalTitleAndExternalDateModified(
             SourceSystemCode sourceSystemCode,
             String externalTitle,
-            OffsetDateTime ExternalDateModified
+            OffsetDateTime externalDateModified
     );
 }

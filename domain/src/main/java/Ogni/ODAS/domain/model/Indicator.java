@@ -12,7 +12,7 @@ public record Indicator(
         DomainPreconditions.validateId(id, "id");
         DomainPreconditions.maxLength(
                 DomainPreconditions.notBlank(name, "name"),
-                500,
+                1000,
                 "name");
         DomainPreconditions.notNull(indicatorGroupCode, "indicatorGroupCode");
     }

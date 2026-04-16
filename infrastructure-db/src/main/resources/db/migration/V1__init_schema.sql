@@ -17,11 +17,28 @@ CREATE TABLE IF NOT EXISTS period
     id          BIGINT PRIMARY KEY DEFAULT NEXTVAL('period_seq'),
     period_type VARCHAR(16)  NOT NULL,
     year        INTEGER      NOT NULL,
-    month       INTEGER      NOT NULL,
-    quarter     INTEGER      NOT NULL,
+    month       INTEGER      NULL,
+    quarter     INTEGER      NULL,
     label       VARCHAR(100) NOT NULL,
-    CONSTRAINT uk_period_period_type_year_month_quarter UNIQUE (period_type, year, month, quarter)
+    CONSTRAINT chk_period_shape
+        CHECK (
+            (period_type = 'YEAR' AND month IS NULL AND quarter IS NULL)
+                OR (period_type = 'MONTH' AND month BETWEEN 1 AND 12 AND quarter IS NULL)
+                OR (period_type = 'QUARTER' AND month IS NULL AND quarter BETWEEN 1 AND 4)
+            )
 );
+
+CREATE UNIQUE INDEX uq_period_year
+    ON period (year)
+    WHERE period_type = 'YEAR';
+
+CREATE UNIQUE INDEX uq_period_month
+    ON period (year, month)
+    WHERE period_type = 'MONTH';
+
+CREATE UNIQUE INDEX uq_period_quarter
+    ON period (year, quarter)
+    WHERE period_type = 'QUARTER';
 
 CREATE TABLE IF NOT EXISTS dataset_version
 (
@@ -94,9 +111,6 @@ CREATE TABLE IF NOT EXISTS observation
 
 CREATE INDEX IF NOT EXISTS idx_dataset_collection_dataset_version_id_collected_at
     ON dataset_collection (dataset_version_id, collected_at);
-
-CREATE INDEX IF NOT EXISTS idx_region_code
-    ON region (code);
 
 CREATE INDEX IF NOT EXISTS idx_region_federal_district_code
     ON region (federal_district_code);

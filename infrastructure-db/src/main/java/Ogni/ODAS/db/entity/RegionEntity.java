@@ -18,7 +18,6 @@ import lombok.Setter;
                 columnNames = {"code"}
         ),
         indexes = {
-                @Index(name = "idx_region_code", columnList = "code"),
                 @Index(name = "idx_region_federal_district_code", columnList = "federal_district_code"),
                 @Index(name = "idx_region_name", columnList = "name")
         }

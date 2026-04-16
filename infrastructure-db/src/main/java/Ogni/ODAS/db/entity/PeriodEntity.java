@@ -12,12 +12,8 @@ import lombok.Setter;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "period",
-        uniqueConstraints = @UniqueConstraint(
-                name = "uk_period_period_type_year_month_quarter",
-                columnNames = {"period_type", "year", "month", "quarter"}
-        )
-)
+@Entity
+@Table(name = "period")
 public class PeriodEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "period_seq_gen")
