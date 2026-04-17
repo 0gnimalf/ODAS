@@ -28,17 +28,8 @@ CREATE TABLE IF NOT EXISTS period
             )
 );
 
-CREATE UNIQUE INDEX uq_period_year
-    ON period (year)
-    WHERE period_type = 'YEAR';
-
-CREATE UNIQUE INDEX uq_period_month
-    ON period (year, month)
-    WHERE period_type = 'MONTH';
-
-CREATE UNIQUE INDEX uq_period_quarter
-    ON period (year, quarter)
-    WHERE period_type = 'QUARTER';
+CREATE UNIQUE INDEX uk_period_identity
+    ON period (period_type, year, month, quarter) NULLS NOT DISTINCT;
 
 CREATE TABLE IF NOT EXISTS dataset_version
 (
@@ -46,7 +37,7 @@ CREATE TABLE IF NOT EXISTS dataset_version
     source_system_code     VARCHAR(64)              NOT NULL,
     external_title         VARCHAR(500)             NOT NULL,
     external_date_modified TIMESTAMP WITH TIME ZONE NOT NULL,
-    CONSTRAINT uk_dataset_version_source_system_code_external_title_external_date_modified UNIQUE (source_system_code, external_title, external_date_modified)
+    CONSTRAINT uk_dataset_version_identity UNIQUE (source_system_code, external_title, external_date_modified)
 );
 
 CREATE TABLE IF NOT EXISTS dataset_collection
@@ -101,7 +92,7 @@ CREATE TABLE IF NOT EXISTS observation
     period_id               BIGINT         NOT NULL,
     observation_value_kind  VARCHAR(128)   NOT NULL,
     value                   DECIMAL(24, 8) NOT NULL,
-    CONSTRAINT uk_observation_region_id_indicator_year_entry_id_period_id_observation_value_kind UNIQUE (region_id, indicator_year_entry_id, period_id, observation_value_kind),
+    CONSTRAINT uk_observation_current_fact UNIQUE (region_id, indicator_year_entry_id, period_id, observation_value_kind),
     CONSTRAINT fk_observation_dataset_collection FOREIGN KEY (dataset_collection_id) REFERENCES dataset_collection (id),
     CONSTRAINT fk_observation_region FOREIGN KEY (region_id) REFERENCES region (id),
     CONSTRAINT fk_observation_indicator_year_entry FOREIGN KEY (indicator_year_entry_id) REFERENCES indicator_year_entry (id),

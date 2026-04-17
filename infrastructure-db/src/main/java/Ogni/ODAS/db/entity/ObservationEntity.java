@@ -16,7 +16,7 @@ import java.math.BigDecimal;
 @Entity
 @Table(name = "observation",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_observation_region_id_indicator_year_entry_id_period_id_observation_value_kind",
+                name = "uk_observation_current_fact",
                 columnNames = {"region_id", "indicator_year_entry_id", "period_id", "observation_value_kind"}
         ),
         indexes = {

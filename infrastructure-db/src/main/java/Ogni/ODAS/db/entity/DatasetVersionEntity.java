@@ -16,7 +16,7 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "dataset_version",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_dataset_version_source_system_code_external_title_external_date_modified",
+                name = "uk_dataset_version_identity",
                 columnNames = {"source_system_code", "external_title", "external_date_modified"}
         )
 )
