@@ -13,8 +13,8 @@ import lombok.Setter;
 @Entity
 @Table(name = "indicator_year_entry",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_indicator_year_entry_indicator_id_period_id",
-                columnNames = {"indicator_id", "period_id"}
+                name = "uk_indicator_year_entry_indicator_id_period_id_parent_id",
+                columnNames = {"indicator_id", "period_id", "parent_indicator_year_entry_id"}
         ),
         indexes = {
                 @Index(name = "idx_indicator_year_entry_period_sort", columnList = "period_id, sort_order"),
