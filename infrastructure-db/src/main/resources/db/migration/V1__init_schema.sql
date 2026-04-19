@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS dataset_collection
 CREATE TABLE IF NOT EXISTS indicator
 (
     id                   BIGINT PRIMARY KEY DEFAULT NEXTVAL('indicator_seq'),
-    name                 VARCHAR(1000) NOT NULL,
+    name                 VARCHAR(2000) NOT NULL,
     indicator_group_code VARCHAR(32)   NOT NULL,
     CONSTRAINT uk_indicator_name_indicator_group_code UNIQUE (name, indicator_group_code)
 );
@@ -67,11 +67,10 @@ CREATE TABLE IF NOT EXISTS indicator_year_entry
     level                          INTEGER NOT NULL,
     sort_order                     INTEGER NOT NULL,
     has_children                   BOOLEAN NOT NULL,
-    CONSTRAINT uk_indicator_year_entry_indicator_id_period_id UNIQUE (indicator_id, period_id),
+    CONSTRAINT uk_indicator_year_entry_indicator_id_period_id_parent_id UNIQUE NULLS NOT DISTINCT (indicator_id, period_id, parent_indicator_year_entry_id),
     CONSTRAINT fk_indicator_year_entry_period FOREIGN KEY (period_id) REFERENCES period (id),
     CONSTRAINT fk_indicator_year_entry_indicator FOREIGN KEY (indicator_id) REFERENCES indicator (id),
     CONSTRAINT fk_indicator_year_entry_parent FOREIGN KEY (parent_indicator_year_entry_id) REFERENCES indicator_year_entry (id)
-
 );
 
 CREATE TABLE IF NOT EXISTS region
