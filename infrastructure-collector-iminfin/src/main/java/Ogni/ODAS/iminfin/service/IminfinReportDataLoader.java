@@ -1,15 +1,15 @@
 package Ogni.ODAS.iminfin.service;
 
+import Ogni.ODAS.application.support.JsonSupport;
 import Ogni.ODAS.iminfin.http.IminfinHttpClient;
 import Ogni.ODAS.iminfin.model.IminfinLoadedData;
 import Ogni.ODAS.iminfin.model.IminfinReportDefinition;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
-@Component
 public class IminfinReportDataLoader {
 
     private static final String PERIOD_PARAMETER = "paramPeriod";
@@ -23,8 +23,8 @@ public class IminfinReportDataLoader {
             IminfinReportDiscoveryService discoveryService,
             IminfinHttpClient httpClient
     ) {
-        this.discoveryService = discoveryService;
-        this.httpClient = httpClient;
+        this.discoveryService = Objects.requireNonNull(discoveryService);
+        this.httpClient = Objects.requireNonNull(httpClient);
     }
 
     public IminfinLoadedData loadDetailData(
@@ -35,14 +35,12 @@ public class IminfinReportDataLoader {
     ) {
         int helperPeriod = discoveryService.loadHelperPeriod(reportDefinition, period);
         String dataSourceCode = reportDefinition.resolveDetailDataSource(helperPeriod);
-
         Map<String, Object> parameters = new LinkedHashMap<>();
         parameters.put(TERRITORY_PARAMETER, territoryCode);
         parameters.put(PERIOD_PARAMETER, period);
         if (outcomesType != null) {
             parameters.put(OUTCOMES_TYPE_PARAMETER, outcomesType);
         }
-
         return loadData(reportDefinition, dataSourceCode, parameters);
     }
 
@@ -58,9 +56,11 @@ public class IminfinReportDataLoader {
         if (extraParameters != null && !extraParameters.isEmpty()) {
             query.putAll(extraParameters);
         }
-
-        JsonNode response = httpClient.getJson(discoveryService.dataUrl(query));
+        String request = discoveryService.dataUrl(query);
+        JsonNode response = httpClient.getJson(request);
         return new IminfinLoadedData(
+                request,
+                JsonSupport.write(response),
                 dataSourceCode,
                 reportDefinition.requireDataSource(dataSourceCode),
                 response.path("data")

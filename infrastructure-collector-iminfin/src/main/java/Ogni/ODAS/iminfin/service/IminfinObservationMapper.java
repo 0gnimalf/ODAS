@@ -1,20 +1,20 @@
 package Ogni.ODAS.iminfin.service;
 
-import Ogni.ODAS.application.dto.CollectedObservationDto;
+import Ogni.ODAS.application.dto.ExternalObservationRow;
+import Ogni.ODAS.application.support.TextNormalizer;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
+import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import Ogni.ODAS.iminfin.model.IminfinDataSourceDefinition;
+import Ogni.ODAS.iminfin.model.IminfinParsedIndicatorRow;
 import Ogni.ODAS.iminfin.util.IminfinJsonTableHelper;
-import Ogni.ODAS.iminfin.util.IminfinTextNormalizer;
 import com.fasterxml.jackson.databind.JsonNode;
-import org.springframework.stereotype.Component;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-@Component
 public class IminfinObservationMapper {
 
     private static final List<ValueBinding> DETAIL_BINDINGS = List.of(
@@ -37,113 +37,70 @@ public class IminfinObservationMapper {
             new ValueBinding("5", ObservationValueKind.ACTUAL_SUBJECT_BUDGET)
     );
 
-    private final IminfinIndicatorTreeParser indicatorTreeParser;
-
-    public IminfinObservationMapper(IminfinIndicatorTreeParser indicatorTreeParser) {
-        this.indicatorTreeParser = indicatorTreeParser;
-    }
-
-    public List<CollectedObservationDto> mapDetailObservationsForRegion(
-            String regionCode,
-            IndicatorGroupCode indicatorGroupCode,
-            int year,
-            int month,
-            String rootPrefix,
+    public List<ExternalObservationRow> mapDetailObservations(
+            String regionExternalCode,
+            IndicatorGroupCode groupCode,
             IminfinDataSourceDefinition dataSource,
-            JsonNode dataRows
+            List<IminfinParsedIndicatorRow> parsedRows
     ) {
-        List<CollectedObservationDto> result = new ArrayList<>();
         Map<String, Integer> columns = IminfinJsonTableHelper.columnIndexes(dataSource.columnNames());
-
-        for (IminfinParsedIndicatorRow parsed : indicatorTreeParser.parseDetailRows(rootPrefix, dataSource, dataRows)) {
-            addObservations(result, regionCode, indicatorGroupCode, parsed.code(), year, month, parsed.row(), columns, DETAIL_BINDINGS);
+        List<ExternalObservationRow> result = new ArrayList<>();
+        for (IminfinParsedIndicatorRow row : parsedRows) {
+            addObservations(result, regionExternalCode, groupCode, row.name(), row.row(), columns, DETAIL_BINDINGS);
         }
-
         return result;
     }
 
-    public List<CollectedObservationDto> mapCreditObservationsForIndicator(
-            String requestedIndicatorCode,
-            int year,
-            int month,
+    public List<ExternalObservationRow> mapCreditObservations(
+            String indicatorName,
             IminfinDataSourceDefinition dataSource,
             JsonNode dataRows,
-            Map<String, String> regionCodeByNormalizedName
+            Map<String, String> externalRegionCodeByNormalizedName
     ) {
         if (!dataRows.isArray()) {
             throw new IllegalStateException("Unexpected iMinfin credit dataset payload: data must be an array");
         }
-
         Map<String, Integer> columns = IminfinJsonTableHelper.columnIndexes(dataSource.columnNames());
         Integer nameIndex = columns.getOrDefault("name", 0);
-        List<CollectedObservationDto> result = new ArrayList<>();
-
+        List<ExternalObservationRow> result = new ArrayList<>();
         for (JsonNode row : dataRows) {
-            if (!row.isArray() || row.isEmpty()) {
-                continue;
-            }
-
             String caption = IminfinJsonTableHelper.textCell(row, nameIndex);
-            String regionCode = resolveRegionCode(caption, regionCodeByNormalizedName);
-            if (regionCode == null) {
+            String regionExternalCode = externalRegionCodeByNormalizedName.get(TextNormalizer.normalize(caption));
+            if (regionExternalCode == null) {
                 continue;
             }
-
-            addObservations(result, regionCode, IndicatorGroupCode.CREDIT, requestedIndicatorCode, year, month, row, columns, CREDIT_BINDINGS);
+            addObservations(result, regionExternalCode, IndicatorGroupCode.CREDIT, indicatorName, row, columns, CREDIT_BINDINGS);
         }
         return result;
     }
 
     private void addObservations(
-            List<CollectedObservationDto> result,
-            String regionCode,
-            IndicatorGroupCode indicatorGroupCode,
-            String indicatorCode,
-            int year,
-            int month,
+            List<ExternalObservationRow> result,
+            String regionExternalCode,
+            IndicatorGroupCode groupCode,
+            String indicatorName,
             JsonNode row,
             Map<String, Integer> columns,
             List<ValueBinding> bindings
     ) {
         for (ValueBinding binding : bindings) {
-            putIfPresent(result, regionCode, indicatorGroupCode, indicatorCode, year, month, row, columns, binding);
+            Integer index = resolveColumnIndex(columns, binding.columnName());
+            BigDecimal value = IminfinJsonTableHelper.decimalCell(row, index);
+            if (value == null) {
+                continue;
+            }
+            result.add(new ExternalObservationRow(
+                    SourceSystemCode.IMINFIN,
+                    regionExternalCode,
+                    groupCode,
+                    indicatorName,
+                    binding.valueKind(),
+                    value
+            ));
         }
-    }
-
-    private void putIfPresent(
-            List<CollectedObservationDto> result,
-            String regionCode,
-            IndicatorGroupCode indicatorGroupCode,
-            String indicatorCode,
-            int year,
-            int month,
-            JsonNode row,
-            Map<String, Integer> columns,
-            ValueBinding binding
-    ) {
-        Integer index = resolveColumnIndex(columns, binding.columnName());
-        BigDecimal value = IminfinJsonTableHelper.decimalCell(row, index);
-        if (value == null) {
-            return;
-        }
-
-        result.add(new CollectedObservationDto(
-                regionCode,
-                indicatorGroupCode,
-                indicatorCode,
-                year,
-                month,
-                binding.valueKind(),
-                value,
-                true
-        ));
     }
 
     private Integer resolveColumnIndex(Map<String, Integer> columns, String columnName) {
-        if (columns == null || columns.isEmpty()) {
-            return parseNumericColumn(columnName);
-        }
-
         Integer index = columns.get(columnName);
         return index != null ? index : parseNumericColumn(columnName);
     }
@@ -154,13 +111,6 @@ public class IminfinObservationMapper {
         } catch (NumberFormatException ex) {
             return null;
         }
-    }
-
-    private String resolveRegionCode(String rowCaption, Map<String, String> regionCodeByNormalizedName) {
-        if (regionCodeByNormalizedName == null || regionCodeByNormalizedName.isEmpty()) {
-            return null;
-        }
-        return regionCodeByNormalizedName.get(IminfinTextNormalizer.normalize(rowCaption));
     }
 
     private record ValueBinding(String columnName, ObservationValueKind valueKind) {

@@ -1,8 +1,8 @@
 package Ogni.ODAS.iminfin.model;
 
 import Ogni.ODAS.iminfin.config.IminfinPassportPage;
-import Ogni.ODAS.iminfin.util.IminfinTextNormalizer;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -13,12 +13,19 @@ public record IminfinReportDefinition(
         String uuid,
         String version,
         String dataVersion,
+        OffsetDateTime dataVersionDate,
         String title,
         Map<String, IminfinParameterDefinition> parameters,
         Map<String, IminfinDataSourceDefinition> dataSources,
         Map<String, String> viewMainDataSources,
         List<String> externalSourceCodes
 ) {
+    public IminfinReportDefinition {
+        parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
+        dataSources = dataSources == null ? Map.of() : Map.copyOf(dataSources);
+        viewMainDataSources = viewMainDataSources == null ? Map.of() : Map.copyOf(viewMainDataSources);
+        externalSourceCodes = externalSourceCodes == null ? List.of() : List.copyOf(externalSourceCodes);
+    }
 
     public IminfinDataSourceDefinition requireDataSource(String name) {
         IminfinDataSourceDefinition definition = dataSources.get(name);
@@ -52,19 +59,5 @@ public record IminfinReportDefinition(
                 .filter(Objects::nonNull)
                 .findFirst()
                 .orElseThrow(() -> new IllegalStateException("Unable to resolve detail data source for report " + title));
-    }
-
-    public String resolvePopulationDataSource() {
-        return viewMainDataSources.values().stream()
-                .filter(this::looksLikePopulationDataSource)
-                .findFirst()
-                .or(() -> dataSources().keySet().stream()
-                        .filter(this::looksLikePopulationDataSource)
-                        .findFirst())
-                .orElse("PassportFK_001_001_digestGridData");
-    }
-
-    private boolean looksLikePopulationDataSource(String dsCode) {
-        return dsCode != null && IminfinTextNormalizer.normalize(dsCode).contains(IminfinTextNormalizer.normalize("digestGridData"));
     }
 }

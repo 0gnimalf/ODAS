@@ -17,7 +17,6 @@ public final class IminfinJsonTableHelper {
         if (columnNames == null) {
             return result;
         }
-
         for (int i = 0; i < columnNames.size(); i++) {
             result.put(columnNames.get(i), i);
         }
@@ -36,7 +35,6 @@ public final class IminfinJsonTableHelper {
         if (!hasCell(row, index)) {
             return null;
         }
-
         JsonNode node = row.get(index);
         if (node == null || node.isNull()) {
             return null;
@@ -44,12 +42,10 @@ public final class IminfinJsonTableHelper {
         if (node.isNumber()) {
             return node.decimalValue();
         }
-
         String text = node.asText();
         if (text == null || text.isBlank()) {
             return null;
         }
-
         try {
             return new BigDecimal(text.replace(" ", "").replace(",", "."));
         } catch (NumberFormatException ex) {

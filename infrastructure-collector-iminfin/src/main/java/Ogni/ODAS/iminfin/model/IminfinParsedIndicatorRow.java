@@ -1,14 +1,14 @@
-package Ogni.ODAS.iminfin.service;
+package Ogni.ODAS.iminfin.model;
 
 import com.fasterxml.jackson.databind.JsonNode;
 
 public record IminfinParsedIndicatorRow(
-        String code,
-        String parentCode,
-        String caption,
+        String naturalKey,
+        String parentNaturalKey,
+        String name,
         int level,
         int sortOrder,
-        boolean section,
+        boolean hasChildren,
         JsonNode row
 ) {
 }

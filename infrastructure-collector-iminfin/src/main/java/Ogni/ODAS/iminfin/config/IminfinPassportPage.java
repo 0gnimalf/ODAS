@@ -1,12 +1,11 @@
 package Ogni.ODAS.iminfin.config;
 
-import static Ogni.ODAS.iminfin.util.IminfinUrlNormalizer.*;
+import static Ogni.ODAS.iminfin.util.IminfinUrlNormalizer.ensureLeadingSlash;
+import static Ogni.ODAS.iminfin.util.IminfinUrlNormalizer.trimTrailingSlash;
 
 public enum IminfinPassportPage {
     PASSPORT_ROOT(""),
-    INCOMES_COMPARE("dokhody-sravnenie-po-regionam"),
     INCOMES_DETAIL("dokhody-detalno"),
-    OUTCOMES_COMPARE("raskhody-sravnenie-po-regionam"),
     OUTCOMES_DETAIL("raskhody-detalno"),
     CREDITS_COMPARE("kredity-sravnenie-po-regionam"),
     FIN_SOURCES_DETAIL("istochniki-finansirovaniya-detalno");
@@ -17,14 +16,10 @@ public enum IminfinPassportPage {
         this.relativePath = relativePath;
     }
 
-    public String relativePath() {
-        return relativePath;
-    }
-
     public String pageUrl(IminfinCollectorProperties properties) {
-        String root = trimTrailingSlash(properties.getBaseUrl())
-                + ensureLeadingSlash(properties.getPassportRoot());
-        if (relativePath == null || relativePath.isBlank()) {
+        String root = trimTrailingSlash(properties.baseUrl())
+                + ensureLeadingSlash(properties.passportRoot());
+        if (relativePath.isBlank()) {
             return root;
         }
         return root + ensureLeadingSlash(relativePath);

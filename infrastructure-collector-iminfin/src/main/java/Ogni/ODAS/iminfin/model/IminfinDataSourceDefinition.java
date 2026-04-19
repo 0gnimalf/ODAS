@@ -10,4 +10,9 @@ public record IminfinDataSourceDefinition(
         List<List<String>> fixedData,
         String externalSourceCode
 ) {
+    public IminfinDataSourceDefinition {
+        parameters = parameters == null ? List.of() : List.copyOf(parameters);
+        columnNames = columnNames == null ? List.of() : List.copyOf(columnNames);
+        fixedData = fixedData == null ? List.of() : List.copyOf(fixedData);
+    }
 }

@@ -1,24 +1,30 @@
 package Ogni.ODAS.iminfin.config;
 
-import lombok.Getter;
-import lombok.Setter;
-import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
-
 import java.time.Duration;
 
-@Setter
-@Getter
-@Component
-@ConfigurationProperties(prefix = "iminfin")
-public class IminfinCollectorProperties {
+import static Ogni.ODAS.iminfin.util.IminfinUrlNormalizer.ensureLeadingSlash;
+import static Ogni.ODAS.iminfin.util.IminfinUrlNormalizer.trimTrailingSlash;
 
-    private String baseUrl = "https://www.iminfin.ru";
-    private String passportRoot = "/areas-of-analysis/budget/finansoviy-pasport-subjecta-rf";
-    private Integer minYearToCollect = 2015;
-    private Integer maxYearToCollect = 2025;
-    private Duration connectTimeout = Duration.ofSeconds(15);
-    private Duration readTimeout = Duration.ofSeconds(90);
-    private Duration discoveryTtl = Duration.ofHours(6);
+public record IminfinCollectorProperties(
+        String baseUrl,
+        String passportRoot,
+        Duration connectTimeout,
+        Duration readTimeout,
+        Duration discoveryTtl
+) {
+    public IminfinCollectorProperties {
+        baseUrl = isBlank(baseUrl) ? "https://www.iminfin.ru" : trimTrailingSlash(baseUrl);
+        passportRoot = isBlank(passportRoot) ? "/areas-of-analysis/budget/finansoviy-pasport-subjecta-rf" : ensureLeadingSlash(passportRoot);
+        connectTimeout = connectTimeout == null ? Duration.ofSeconds(15) : connectTimeout;
+        readTimeout = readTimeout == null ? Duration.ofSeconds(90) : readTimeout;
+        discoveryTtl = discoveryTtl == null ? Duration.ofHours(6) : discoveryTtl;
+    }
 
+    public static IminfinCollectorProperties defaults() {
+        return new IminfinCollectorProperties(null, null, null, null, null);
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
+    }
 }

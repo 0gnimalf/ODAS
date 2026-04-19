@@ -1,9 +1,8 @@
 package Ogni.ODAS.iminfin.http;
 
+import Ogni.ODAS.application.support.JsonSupport;
 import Ogni.ODAS.iminfin.config.IminfinCollectorProperties;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.net.URI;
@@ -12,30 +11,26 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
-import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.StringJoiner;
 
-@Component
 public class IminfinHttpClient {
 
-    private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
-    private final Duration readTimeout;
+    private final IminfinCollectorProperties properties;
 
-    public IminfinHttpClient(ObjectMapper objectMapper, IminfinCollectorProperties properties) {
-        this.objectMapper = objectMapper;
-        this.readTimeout = properties.getReadTimeout();
+    public IminfinHttpClient(IminfinCollectorProperties properties) {
+        this.properties = properties == null ? IminfinCollectorProperties.defaults() : properties;
         this.httpClient = HttpClient.newBuilder()
-                .connectTimeout(properties.getConnectTimeout())
+                .connectTimeout(this.properties.connectTimeout())
                 .followRedirects(HttpClient.Redirect.NORMAL)
                 .build();
     }
 
     public String getText(String url) {
         HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .timeout(readTimeout)
+                .timeout(properties.readTimeout())
                 .GET()
                 .header("Accept", "application/json, text/plain, */*")
                 .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
@@ -56,11 +51,7 @@ public class IminfinHttpClient {
     }
 
     public JsonNode getJson(String url) {
-        try {
-            return objectMapper.readTree(getText(url));
-        } catch (IOException ex) {
-            throw new IllegalStateException("Unable to parse JSON from iMinfin: " + url, ex);
-        }
+        return JsonSupport.readTree(getText(url));
     }
 
     public String withQuery(String baseUrl, Map<String, ?> queryParams) {
