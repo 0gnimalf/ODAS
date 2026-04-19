@@ -1,0 +1,24 @@
+services:
+  odas-postgres:
+    image: postgres:17-alpine
+    container_name: odas-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${ODAS_POSTGRES_DB:-odas}
+      POSTGRES_USER: ${ODAS_POSTGRES_USER:-odas}
+      POSTGRES_PASSWORD: ${ODAS_POSTGRES_PASSWORD:-odas}
+      TZ: ${ODAS_POSTGRES_TZ:-UTC}
+    ports:
+      - "${ODAS_POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - odas-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\"" ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  odas-postgres-data:
+    name: odas-postgres-data

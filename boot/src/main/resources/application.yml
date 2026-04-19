@@ -1,0 +1,32 @@
+server:
+  port: ${ODAS_SERVER_PORT:8080}
+
+spring:
+  application:
+    name: ODAS
+  datasource:
+    url: ${ODAS_DB_URL:jdbc:postgresql://localhost:5432/odas}
+    username: ${ODAS_DB_USERNAME:odas}
+    password: ${ODAS_DB_PASSWORD:odas}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  #    show-sql: true
+  sql:
+    init:
+      mode: always
+      schema-locations: "file:infrastructure-db/src/main/resources/db/migration/V1__init_schema.sql"
+  flyway:
+    enabled: true
+
+odas:
+  iminfin:
+    base-url: ${ODAS_IMINFIN_BASE_URL:https://www.iminfin.ru}
+    passport-root: ${ODAS_IMINFIN_PASSPORT_ROOT:/areas-of-analysis/budget/finansoviy-pasport-subjecta-rf}
+    connect-timeout: ${ODAS_IMINFIN_CONNECT_TIMEOUT:20s}
+    read-timeout: ${ODAS_IMINFIN_READ_TIMEOUT:90s}
+    discovery-ttl: ${ODAS_IMINFIN_DISCOVERY_TTL:6h}
