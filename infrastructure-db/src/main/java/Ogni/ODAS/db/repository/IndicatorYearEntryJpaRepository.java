@@ -8,7 +8,7 @@ import java.util.Optional;
 
 public interface IndicatorYearEntryJpaRepository extends JpaRepository<IndicatorYearEntryEntity, Long> {
 
-    Optional<IndicatorYearEntryEntity> findByIndicatorIdAndPeriodId(Long indicatorId, Long periodId);
+    Optional<IndicatorYearEntryEntity> findByIndicatorIdAndPeriodIdAndParentIndicatorYearEntryId(Long indicatorId, Long periodId, Long parentId);
 
     List<IndicatorYearEntryEntity> findAllByPeriodIdOrderBySortOrderAsc(Long periodId);
 

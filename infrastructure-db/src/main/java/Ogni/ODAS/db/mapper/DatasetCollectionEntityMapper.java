@@ -1,7 +1,7 @@
 package Ogni.ODAS.db.mapper;
 
+import Ogni.ODAS.application.support.JsonSupport;
 import Ogni.ODAS.db.entity.DatasetCollectionEntity;
-import Ogni.ODAS.db.support.JsonSupport;
 import Ogni.ODAS.domain.model.DatasetCollection;
 
 public final class DatasetCollectionEntityMapper {
