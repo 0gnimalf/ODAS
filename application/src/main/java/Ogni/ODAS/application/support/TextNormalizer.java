@@ -1,11 +1,11 @@
-package Ogni.ODAS.iminfin.util;
+package Ogni.ODAS.application.support;
 
 import java.text.Normalizer;
 import java.util.Locale;
 
-public final class IminfinTextNormalizer {
+public final class TextNormalizer {
 
-    private IminfinTextNormalizer() {
+    private TextNormalizer() {
     }
 
     public static String normalize(String value) {
@@ -14,7 +14,7 @@ public final class IminfinTextNormalizer {
         }
 
         String normalized = value
-                .replace(' ', ' ')
+                .replace(' ', ' ') //'\u00A0'
                 .replace('ё', 'е')
                 .replace('Ё', 'Е')
                 .trim()
