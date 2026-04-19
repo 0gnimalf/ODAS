@@ -28,7 +28,7 @@ CREATE TABLE IF NOT EXISTS period
             )
 );
 
-CREATE UNIQUE INDEX uk_period_identity
+CREATE UNIQUE INDEX IF NOT EXISTS uk_period_identity
     ON period (period_type, year, month, quarter) NULLS NOT DISTINCT;
 
 CREATE TABLE IF NOT EXISTS dataset_version
