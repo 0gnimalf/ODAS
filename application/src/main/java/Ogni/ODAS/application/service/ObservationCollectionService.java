@@ -87,15 +87,12 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
 
                 if (region == null || row.indicatorName() == null || row.value() == null || row.valueKind() == null) {
                     skipped++;
-                    System.out.println((region == null) + "|" + (row.indicatorName() == null) + "|" + (row.value() == null) + "|" + (row.valueKind() == null));
-                    System.out.println("skipped: " + region + "|" + row);
                     continue;
                 }
 
                 IndicatorYearEntry entry = entriesByNameAndParent.get(IndicatorLookupKey.from(row.indicatorName(), row.parentIndicatorName()));
                 if (entry == null) {
                     skipped++;
-                    System.out.println("skipped: " + entry + "|" + region + "|" + row);
                     continue;
                 }
                 Observation observation = new Observation(

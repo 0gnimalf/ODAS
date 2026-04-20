@@ -75,7 +75,6 @@ public class ObservationPersistenceAdapter implements ObservationPersistencePort
                 }
             }
         }
-        System.out.println(batch.size() + "|||||" + total);
         return total;
     }
 

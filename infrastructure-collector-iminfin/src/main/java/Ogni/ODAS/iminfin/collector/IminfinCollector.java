@@ -35,7 +35,6 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     private static final String TERRITORY_DATA_SOURCE = "TerritoryOnlySubject";
     private static final String TERRITORY_PERIOD_PARAMETER = "TERRITORIES_paramPeriod";
     private static final String TERRITORY_PERIOD_VALUE = "2014-05-28T00:00:00.000Z";
-    private static final String DEFAULT_TERRITORY_PARAMETER = "territory";
     private static final String OUTCOME_TYPES_DATA_SOURCE = "PassportFK_002_002_outcomesTypesFix";
     private static final String CREDIT_PARAMETERS_DATA_SOURCE = "PassportFK_001_005_paramCreditsData_fixed";
     private static final String CREDIT_DATA_SOURCE = "PassportFK_001_005_creditGridData";
@@ -92,12 +91,24 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     public List<ExternalIndicatorRow> collectIndicators(IndicatorGroupCode groupCode, int year) {
         String requestedPeriod = IminfinPeriodFormatter.format(year, 1);
         return switch (groupCode) {
-            case INCOME ->
-                    collectDetailIndicators(IminfinPassportPage.INCOMES_DETAIL, groupCode, "income", null, requestedPeriod);
+            case INCOME -> collectMergedDetailIndicators(
+                    IminfinPassportPage.INCOMES_DETAIL,
+                    groupCode,
+                    "income",
+                    null,
+                    null,
+                    requestedPeriod
+            );
             case OUTCOME -> collectOutcomeIndicators(requestedPeriod);
             case CREDIT -> collectCreditIndicators();
-            case FIN_SOURCE ->
-                    collectDetailIndicators(IminfinPassportPage.FIN_SOURCES_DETAIL, groupCode, "fin-source", null, requestedPeriod);
+            case FIN_SOURCE -> collectMergedDetailIndicators(
+                    IminfinPassportPage.FIN_SOURCES_DETAIL,
+                    groupCode,
+                    "fin-source",
+                    null,
+                    null,
+                    requestedPeriod
+            );
             default -> throw new IllegalStateException("Unsupported indicator group: " + groupCode);
         };
     }
@@ -111,12 +122,26 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     ) {
         String requestedPeriod = IminfinPeriodFormatter.format(year, month);
         return switch (groupCode) {
-            case INCOME ->
-                    collectDetailObservationPayloads(IminfinPassportPage.INCOMES_DETAIL, groupCode, "income", "Доходы", null, requestedPeriod, regions);
+            case INCOME -> collectDetailObservationPayloads(
+                    IminfinPassportPage.INCOMES_DETAIL,
+                    groupCode,
+                    "income",
+                    null,
+                    null,
+                    requestedPeriod,
+                    regions
+            );
             case OUTCOME -> collectOutcomeObservationPayloads(requestedPeriod, regions);
             case CREDIT -> collectCreditObservationPayloads(requestedPeriod, regions);
-            case FIN_SOURCE ->
-                    collectDetailObservationPayloads(IminfinPassportPage.FIN_SOURCES_DETAIL, groupCode, "fin-source", "Источники финансирования", null, requestedPeriod, regions);
+            case FIN_SOURCE -> collectDetailObservationPayloads(
+                    IminfinPassportPage.FIN_SOURCES_DETAIL,
+                    groupCode,
+                    "fin-source",
+                    null,
+                    null,
+                    requestedPeriod,
+                    regions
+            );
             default -> throw new IllegalStateException("Unsupported indicator group: " + groupCode);
         };
     }
@@ -125,16 +150,14 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         IminfinReportDefinition report = discoveryService.discover(IminfinPassportPage.OUTCOMES_DETAIL);
         List<ExternalIndicatorRow> result = new ArrayList<>();
         for (OutcomeTypeSpec spec : outcomeTypes(report)) {
-            result.add(new ExternalIndicatorRow(
+            result.addAll(collectMergedDetailIndicators(
+                    report,
                     IndicatorGroupCode.OUTCOME,
                     spec.namespace(),
-                    spec.displayPrefix(),
-                    null,
-                    0,
-                    spec.sortOffset(),
-                    true
+                    spec.serviceRootName(),
+                    spec.value(),
+                    requestedPeriod
             ));
-            result.addAll(collectOutcomeBranchIndicators(report, spec, requestedPeriod));
         }
         return result;
     }
@@ -143,85 +166,80 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         IminfinReportDefinition report = discoveryService.discover(IminfinPassportPage.OUTCOMES_DETAIL);
         List<ExternalDatasetPayload> result = new ArrayList<>();
         for (OutcomeTypeSpec spec : outcomeTypes(report)) {
-            result.addAll(collectDetailObservationPayloads(report, IndicatorGroupCode.OUTCOME, spec.namespace(), spec.displayPrefix(), spec.value(), requestedPeriod, regions));
+            result.addAll(collectDetailObservationPayloads(
+                    report,
+                    IndicatorGroupCode.OUTCOME,
+                    spec.namespace(),
+                    spec.serviceRootName(),
+                    spec.value(),
+                    requestedPeriod,
+                    regions
+            ));
         }
         return result;
     }
 
-    private List<ExternalIndicatorRow> collectDetailIndicators(
+    private List<ExternalIndicatorRow> collectMergedDetailIndicators(
             IminfinPassportPage page,
             IndicatorGroupCode groupCode,
             String namespace,
+            String serviceRootName,
             Integer outcomesType,
             String requestedPeriod
     ) {
-        return collectDetailIndicators(discoveryService.discover(page), groupCode, namespace, outcomesType, requestedPeriod);
+        return collectMergedDetailIndicators(
+                discoveryService.discover(page),
+                groupCode,
+                namespace,
+                serviceRootName,
+                outcomesType,
+                requestedPeriod
+        );
     }
 
-    private List<ExternalIndicatorRow> collectDetailIndicators(
+    private List<ExternalIndicatorRow> collectMergedDetailIndicators(
             IminfinReportDefinition report,
             IndicatorGroupCode groupCode,
             String namespace,
+            String serviceRootName,
             Integer outcomesType,
             String requestedPeriod
     ) {
-        String territoryCode = report.defaultValue(DEFAULT_TERRITORY_PARAMETER);
         String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
-        IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, territoryCode, requestedPeriod, outcomesType);
-        return indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows()).stream()
-                .map(row -> new ExternalIndicatorRow(
-                        groupCode,
-                        row.naturalKey(),
-                        row.name(),
-                        row.parentNaturalKey(),
-                        row.level(),
-                        row.sortOrder(),
-                        row.hasChildren()
-                ))
-                .toList();
-    }
+        List<ExternalRegionRow> regions = collectRegions();
+        List<List<IminfinParsedIndicatorRow>> regionTrees = mapInParallel(regions, region -> {
+            IminfinLoadedData loaded = reportDataLoader.loadDetailData(
+                    report,
+                    dataSourceCode,
+                    region.externalCode(),
+                    requestedPeriod,
+                    outcomesType
+            );
+            return indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows()).stream()
+                    .map(row -> applyServiceRoot(row, namespace, serviceRootName))
+                    .toList();
+        });
 
-    private List<ExternalIndicatorRow> collectOutcomeBranchIndicators(
-            IminfinReportDefinition report,
-            OutcomeTypeSpec spec,
-            String requestedPeriod
-    ) {
-        String territoryCode = report.defaultValue(DEFAULT_TERRITORY_PARAMETER);
-        String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
-        IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, territoryCode, requestedPeriod, spec.value());
-        return addSyntheticOutcomeRoot(
-                indicatorTreeParser.parseDetailRows(spec.namespace(), loaded.dataSource(), loaded.dataRows()),
-                spec
-        ).stream()
-                .map(row -> new ExternalIndicatorRow(
-                        IndicatorGroupCode.OUTCOME,
-                        row.naturalKey(),
-                        row.name(),
-                        row.parentNaturalKey(),
-                        row.level(),
-                        row.sortOrder(),
-                        row.hasChildren()
-                ))
-                .toList();
+        return mergeIndicatorTrees(groupCode, namespace, serviceRootName, regionTrees);
     }
 
     private List<ExternalDatasetPayload> collectDetailObservationPayloads(
             IminfinPassportPage page,
             IndicatorGroupCode groupCode,
             String namespace,
-            String displayPrefix,
+            String serviceRootName,
             Integer outcomesType,
             String requestedPeriod,
             Collection<ExternalRegionRef> regions
     ) {
-        return collectDetailObservationPayloads(discoveryService.discover(page), groupCode, namespace, displayPrefix, outcomesType, requestedPeriod, regions);
+        return collectDetailObservationPayloads(discoveryService.discover(page), groupCode, namespace, serviceRootName, outcomesType, requestedPeriod, regions);
     }
 
     private List<ExternalDatasetPayload> collectDetailObservationPayloads(
             IminfinReportDefinition report,
             IndicatorGroupCode groupCode,
             String namespace,
-            String displayPrefix,
+            String serviceRootName,
             Integer outcomesType,
             String requestedPeriod,
             Collection<ExternalRegionRef> regions
@@ -229,10 +247,9 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
         return mapInParallel(regions, region -> {
             IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, region.externalCode(), requestedPeriod, outcomesType);
-            List<IminfinParsedIndicatorRow> parsedRows = indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows());
-            if (groupCode == IndicatorGroupCode.OUTCOME && outcomesType != null && displayPrefix != null && !displayPrefix.isBlank()) {
-                parsedRows = addSyntheticOutcomeRoot(parsedRows, new OutcomeTypeSpec(outcomesType, namespace, displayPrefix));
-            }
+            List<IminfinParsedIndicatorRow> parsedRows = indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows()).stream()
+                    .map(row -> applyServiceRoot(row, namespace, serviceRootName))
+                    .toList();
             List<ExternalObservationRow> observations = observationMapper.mapDetailObservations(
                     region.externalCode(),
                     groupCode,
@@ -241,6 +258,132 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             );
             return toPayload(report, loaded, observations);
         });
+    }
+
+    private IminfinParsedIndicatorRow applyServiceRoot(
+            IminfinParsedIndicatorRow row,
+            String namespace,
+            String serviceRootName
+    ) {
+        if (serviceRootName == null || serviceRootName.isBlank()) {
+            return row;
+        }
+        return new IminfinParsedIndicatorRow(
+                row.naturalKey(),
+                row.parentNaturalKey() == null ? namespace : row.parentNaturalKey(),
+                row.name(),
+                row.parentName() == null ? serviceRootName : row.parentName(),
+                row.level() + 1,
+                row.sortOrder() + 1,
+                row.hasChildren(),
+                row.row()
+        );
+    }
+
+    private List<ExternalIndicatorRow> mergeIndicatorTrees(
+            IndicatorGroupCode groupCode,
+            String namespace,
+            String serviceRootName,
+            List<List<IminfinParsedIndicatorRow>> regionTrees
+    ) {
+        Map<IndicatorRowIdentity, MergedIndicatorRow> mergedRows = new LinkedHashMap<>();
+        Map<IndicatorRowIdentity, String> naturalKeyByIdentity = new LinkedHashMap<>();
+        Set<String> usedNaturalKeys = new HashSet<>();
+        int sortOrder = 0;
+
+        if (serviceRootName != null && !serviceRootName.isBlank()) {
+            IndicatorRowIdentity rootIdentity = IndicatorRowIdentity.from(serviceRootName, null);
+            String rootKey = uniqueNaturalKey(namespace, usedNaturalKeys);
+            naturalKeyByIdentity.put(rootIdentity, rootKey);
+            mergedRows.put(rootIdentity, new MergedIndicatorRow(
+                    groupCode,
+                    rootKey,
+                    serviceRootName,
+                    null,
+                    0,
+                    ++sortOrder,
+                    true
+            ));
+        }
+
+        for (List<IminfinParsedIndicatorRow> tree : regionTrees) {
+            if (tree == null || tree.isEmpty()) {
+                continue;
+            }
+
+            Map<String, IndicatorRowIdentity> identityBySourceNaturalKey = new HashMap<>();
+            for (IminfinParsedIndicatorRow row : tree) {
+                if (row != null && row.naturalKey() != null && row.name() != null && !row.name().isBlank()) {
+                    identityBySourceNaturalKey.put(row.naturalKey(), IndicatorRowIdentity.from(row.name(), row.parentName()));
+                }
+            }
+
+            for (IminfinParsedIndicatorRow row : tree) {
+                if (row == null || row.name() == null || row.name().isBlank()) {
+                    continue;
+                }
+                IndicatorRowIdentity identity = IndicatorRowIdentity.from(row.name(), row.parentName());
+                MergedIndicatorRow existing = mergedRows.get(identity);
+                if (existing != null) {
+                    if (row.hasChildren() && !existing.hasChildren()) {
+                        mergedRows.put(identity, existing.withChildren());
+                    }
+                    continue;
+                }
+
+                String parentNaturalKey = null;
+                if (row.parentNaturalKey() != null && !row.parentNaturalKey().isBlank()) {
+                    IndicatorRowIdentity parentIdentity;
+                    if (serviceRootName != null && row.parentNaturalKey().equals(namespace)) {
+                        parentIdentity = IndicatorRowIdentity.from(serviceRootName, null);
+                    } else {
+                        parentIdentity = identityBySourceNaturalKey.get(row.parentNaturalKey());
+                    }
+                    parentNaturalKey = parentIdentity == null ? null : naturalKeyByIdentity.get(parentIdentity);
+                }
+
+                String naturalKey = uniqueNaturalKey(buildNaturalKey(namespace, row.name(), row.parentName()), usedNaturalKeys);
+                naturalKeyByIdentity.put(identity, naturalKey);
+                mergedRows.put(identity, new MergedIndicatorRow(
+                        groupCode,
+                        naturalKey,
+                        row.name(),
+                        parentNaturalKey,
+                        row.level(),
+                        ++sortOrder,
+                        row.hasChildren()
+                ));
+            }
+        }
+
+        return mergedRows.values().stream()
+                .map(MergedIndicatorRow::toExternalRow)
+                .toList();
+    }
+
+    private String buildNaturalKey(String namespace, String name, String parentName) {
+        String nameSegment = TextNormalizer.slugify(name);
+        if (nameSegment.isBlank()) {
+            nameSegment = "indicator";
+        }
+        if (parentName == null || parentName.isBlank()) {
+            return namespace + "/" + nameSegment;
+        }
+        String parentSegment = TextNormalizer.slugify(parentName);
+        if (parentSegment.isBlank()) {
+            parentSegment = "parent";
+        }
+        return namespace + "/" + parentSegment + "/" + nameSegment;
+    }
+
+    private String uniqueNaturalKey(String baseKey, Set<String> usedNaturalKeys) {
+        String key = baseKey;
+        int duplicate = 2;
+        while (!usedNaturalKeys.add(key)) {
+            key = baseKey + "-" + duplicate;
+            duplicate++;
+        }
+        return key;
     }
 
     private List<ExternalIndicatorRow> collectCreditIndicators() {
@@ -355,27 +498,6 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         return result;
     }
 
-    private List<IminfinParsedIndicatorRow> addSyntheticOutcomeRoot(
-            List<IminfinParsedIndicatorRow> rows,
-            OutcomeTypeSpec spec
-    ) {
-        if (rows == null || rows.isEmpty()) {
-            return List.of();
-        }
-        return rows.stream()
-                .map(row -> new IminfinParsedIndicatorRow(
-                        row.naturalKey(),
-                        row.parentNaturalKey() == null ? spec.namespace() : row.parentNaturalKey(),
-                        row.name(),
-                        row.parentName() == null ? spec.displayPrefix() : row.parentName(),
-                        row.level() + 1,
-                        spec.sortOffset() + row.sortOrder(),
-                        row.hasChildren(),
-                        row.row()
-                ))
-                .toList();
-    }
-
     private List<CreditIndicatorSpec> creditIndicatorSpecs(IminfinDataSourceDefinition source) {
         List<CreditIndicatorSpec> result = new ArrayList<>();
         String currentParentKey = null;
@@ -399,7 +521,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String baseKey = parentKey == null
                     ? "credit/" + TextNormalizer.slugify(cleanCaption)
                     : parentKey + "/" + TextNormalizer.slugify(cleanCaption);
-            String key = uniqueKey(baseKey, usedKeys);
+            String key = uniqueNaturalKey(baseKey, usedKeys);
             if (!child) {
                 currentParentKey = key;
                 currentParentName = cleanCaption;
@@ -409,20 +531,39 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         return result;
     }
 
-    private String uniqueKey(String baseKey, Set<String> usedKeys) {
-        String key = baseKey;
-        int duplicate = 2;
-        while (!usedKeys.add(key)) {
-            key = baseKey + "-" + duplicate;
-            duplicate++;
+    private record IndicatorRowIdentity(String normalizedName, String normalizedParentName) {
+        private static IndicatorRowIdentity from(String name, String parentName) {
+            return new IndicatorRowIdentity(TextNormalizer.normalize(name), normalizeNullable(parentName));
         }
-        return key;
+
+        private static String normalizeNullable(String value) {
+            if (value == null || value.isBlank()) {
+                return null;
+            }
+            String normalized = TextNormalizer.normalize(value);
+            return normalized.isBlank() ? null : normalized;
+        }
     }
 
-    private record OutcomeTypeSpec(int value, String namespace, String displayPrefix) {
-        private int sortOffset() {
-            return value * 1_000_000;
+    private record MergedIndicatorRow(
+            IndicatorGroupCode groupCode,
+            String naturalKey,
+            String name,
+            String parentNaturalKey,
+            int level,
+            int sortOrder,
+            boolean hasChildren
+    ) {
+        private MergedIndicatorRow withChildren() {
+            return new MergedIndicatorRow(groupCode, naturalKey, name, parentNaturalKey, level, sortOrder, true);
         }
+
+        private ExternalIndicatorRow toExternalRow() {
+            return new ExternalIndicatorRow(groupCode, naturalKey, name, parentNaturalKey, level, sortOrder, hasChildren);
+        }
+    }
+
+    private record OutcomeTypeSpec(int value, String namespace, String serviceRootName) {
     }
 
     private record CreditIndicatorSpec(
