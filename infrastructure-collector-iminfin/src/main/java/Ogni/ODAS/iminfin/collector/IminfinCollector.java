@@ -125,7 +125,16 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         IminfinReportDefinition report = discoveryService.discover(IminfinPassportPage.OUTCOMES_DETAIL);
         List<ExternalIndicatorRow> result = new ArrayList<>();
         for (OutcomeTypeSpec spec : outcomeTypes(report)) {
-            result.addAll(collectDetailIndicators(report, IndicatorGroupCode.OUTCOME, spec.namespace(), spec.value(), requestedPeriod));
+            result.add(new ExternalIndicatorRow(
+                    IndicatorGroupCode.OUTCOME,
+                    spec.namespace(),
+                    spec.displayPrefix(),
+                    null,
+                    0,
+                    spec.sortOffset(),
+                    true
+            ));
+            result.addAll(collectOutcomeBranchIndicators(report, spec, requestedPeriod));
         }
         return result;
     }
@@ -172,6 +181,30 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                 .toList();
     }
 
+    private List<ExternalIndicatorRow> collectOutcomeBranchIndicators(
+            IminfinReportDefinition report,
+            OutcomeTypeSpec spec,
+            String requestedPeriod
+    ) {
+        String territoryCode = report.defaultValue(DEFAULT_TERRITORY_PARAMETER);
+        String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
+        IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, territoryCode, requestedPeriod, spec.value());
+        return addSyntheticOutcomeRoot(
+                indicatorTreeParser.parseDetailRows(spec.namespace(), loaded.dataSource(), loaded.dataRows()),
+                spec
+        ).stream()
+                .map(row -> new ExternalIndicatorRow(
+                        IndicatorGroupCode.OUTCOME,
+                        row.naturalKey(),
+                        row.name(),
+                        row.parentNaturalKey(),
+                        row.level(),
+                        row.sortOrder(),
+                        row.hasChildren()
+                ))
+                .toList();
+    }
+
     private List<ExternalDatasetPayload> collectDetailObservationPayloads(
             IminfinPassportPage page,
             IndicatorGroupCode groupCode,
@@ -197,6 +230,9 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         return mapInParallel(regions, region -> {
             IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, region.externalCode(), requestedPeriod, outcomesType);
             List<IminfinParsedIndicatorRow> parsedRows = indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows());
+            if (groupCode == IndicatorGroupCode.OUTCOME && outcomesType != null && displayPrefix != null && !displayPrefix.isBlank()) {
+                parsedRows = addSyntheticOutcomeRoot(parsedRows, new OutcomeTypeSpec(outcomesType, namespace, displayPrefix));
+            }
             List<ExternalObservationRow> observations = observationMapper.mapDetailObservations(
                     region.externalCode(),
                     groupCode,
@@ -319,6 +355,27 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         return result;
     }
 
+    private List<IminfinParsedIndicatorRow> addSyntheticOutcomeRoot(
+            List<IminfinParsedIndicatorRow> rows,
+            OutcomeTypeSpec spec
+    ) {
+        if (rows == null || rows.isEmpty()) {
+            return List.of();
+        }
+        return rows.stream()
+                .map(row -> new IminfinParsedIndicatorRow(
+                        row.naturalKey(),
+                        row.parentNaturalKey() == null ? spec.namespace() : row.parentNaturalKey(),
+                        row.name(),
+                        row.parentName() == null ? spec.displayPrefix() : row.parentName(),
+                        row.level() + 1,
+                        spec.sortOffset() + row.sortOrder(),
+                        row.hasChildren(),
+                        row.row()
+                ))
+                .toList();
+    }
+
     private List<CreditIndicatorSpec> creditIndicatorSpecs(IminfinDataSourceDefinition source) {
         List<CreditIndicatorSpec> result = new ArrayList<>();
         String currentParentKey = null;
@@ -363,6 +420,9 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     }
 
     private record OutcomeTypeSpec(int value, String namespace, String displayPrefix) {
+        private int sortOffset() {
+            return value * 1_000_000;
+        }
     }
 
     private record CreditIndicatorSpec(
