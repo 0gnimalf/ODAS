@@ -5,6 +5,7 @@ import Ogni.ODAS.db.adapter.*;
 import Ogni.ODAS.db.repository.*;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
 @Configuration
 public class PersistenceAdapterConfiguration {
@@ -40,7 +41,7 @@ public class PersistenceAdapterConfiguration {
     }
 
     @Bean
-    public ObservationPersistencePort observationPersistencePort(ObservationJpaRepository repository) {
-        return new ObservationPersistenceAdapter(repository);
+    public ObservationPersistencePort observationPersistencePort(ObservationJpaRepository repository, JdbcTemplate jdbcTemplate) {
+        return new ObservationPersistenceAdapter(repository, jdbcTemplate);
     }
 }

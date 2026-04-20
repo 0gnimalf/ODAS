@@ -4,7 +4,6 @@ import Ogni.ODAS.application.command.SyncIndicatorsCommand;
 import Ogni.ODAS.application.dto.ReferenceSyncResultDto;
 import Ogni.ODAS.application.port.in.ReferenceSyncUseCase;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
-import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -21,7 +20,6 @@ public class TemporaryReferenceController {
     }
 
     @GetMapping("/regions")
-    @Transactional
     public ReferenceSyncResultDto syncRegions(
             @RequestParam(name = "force", defaultValue = "false") boolean force
     ) {
@@ -31,7 +29,6 @@ public class TemporaryReferenceController {
     }
 
     @GetMapping("/indicators")
-    @Transactional
     public ReferenceSyncResultDto syncIndicators(
             @RequestParam("year") Integer year,
             @RequestParam(name = "group", required = false) IndicatorGroupCode groupCode

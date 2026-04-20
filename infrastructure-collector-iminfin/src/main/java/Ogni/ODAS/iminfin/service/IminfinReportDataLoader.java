@@ -9,6 +9,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class IminfinReportDataLoader {
 
@@ -18,6 +19,7 @@ public class IminfinReportDataLoader {
 
     private final IminfinReportDiscoveryService discoveryService;
     private final IminfinHttpClient httpClient;
+    private final Map<DetailDataSourceKey, String> detailDataSourceCache = new ConcurrentHashMap<>();
 
     public IminfinReportDataLoader(
             IminfinReportDiscoveryService discoveryService,
@@ -27,14 +29,39 @@ public class IminfinReportDataLoader {
         this.httpClient = Objects.requireNonNull(httpClient);
     }
 
+    public String resolveDetailDataSourceCode(
+            IminfinReportDefinition reportDefinition,
+            String period
+    ) {
+        DetailDataSourceKey key = new DetailDataSourceKey(reportDefinition.uuid(), reportDefinition.dataVersion(), period);
+        return detailDataSourceCache.computeIfAbsent(key, ignored -> {
+            int helperPeriod = discoveryService.loadHelperPeriod(reportDefinition, period);
+            return reportDefinition.resolveDetailDataSource(helperPeriod);
+        });
+    }
+
     public IminfinLoadedData loadDetailData(
             IminfinReportDefinition reportDefinition,
             String territoryCode,
             String period,
             Integer outcomesType
     ) {
-        int helperPeriod = discoveryService.loadHelperPeriod(reportDefinition, period);
-        String dataSourceCode = reportDefinition.resolveDetailDataSource(helperPeriod);
+        return loadDetailData(
+                reportDefinition,
+                resolveDetailDataSourceCode(reportDefinition, period),
+                territoryCode,
+                period,
+                outcomesType
+        );
+    }
+
+    public IminfinLoadedData loadDetailData(
+            IminfinReportDefinition reportDefinition,
+            String dataSourceCode,
+            String territoryCode,
+            String period,
+            Integer outcomesType
+    ) {
         Map<String, Object> parameters = new LinkedHashMap<>();
         parameters.put(TERRITORY_PARAMETER, territoryCode);
         parameters.put(PERIOD_PARAMETER, period);
@@ -65,5 +92,8 @@ public class IminfinReportDataLoader {
                 reportDefinition.requireDataSource(dataSourceCode),
                 response.path("data")
         );
+    }
+
+    private record DetailDataSourceKey(String reportUuid, String dataVersion, String period) {
     }
 }

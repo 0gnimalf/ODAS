@@ -17,8 +17,20 @@ public class OdasIminfinProperties {
     private Duration connectTimeout;
     private Duration readTimeout;
     private Duration discoveryTtl;
+    private Integer maxParallelRequests;
+    private Integer retryAttempts;
+    private Duration retryBackoff;
 
     public IminfinCollectorProperties toCollectorProperties() {
-        return new IminfinCollectorProperties(baseUrl, passportRoot, connectTimeout, readTimeout, discoveryTtl);
+        return new IminfinCollectorProperties(
+                baseUrl,
+                passportRoot,
+                connectTimeout,
+                readTimeout,
+                discoveryTtl,
+                maxParallelRequests,
+                retryAttempts,
+                retryBackoff
+        );
     }
 }

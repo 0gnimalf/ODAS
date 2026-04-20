@@ -11,5 +11,7 @@ public interface RegionPersistencePort {
 
     Optional<Region> findByCode(String code);
 
+    boolean existsAny();
+
     List<Region> findAll();
 }

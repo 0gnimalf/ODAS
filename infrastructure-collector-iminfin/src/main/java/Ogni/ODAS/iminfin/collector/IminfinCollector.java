@@ -24,6 +24,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Function;
 
 public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIndicatorCollectorPort, ExternalObservationCollectorPort {
 
@@ -36,6 +41,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     private static final String CREDIT_DATA_SOURCE = "PassportFK_001_005_creditGridData";
     private static final String CREDIT_PARAMETER_NAME = "PassportFK_001_005_paramCredits";
 
+    private final IminfinCollectorProperties properties;
     private final IminfinReportDiscoveryService discoveryService;
     private final IminfinReportDataLoader reportDataLoader;
     private final IminfinIndicatorTreeParser indicatorTreeParser;
@@ -46,8 +52,9 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     }
 
     public IminfinCollector(IminfinCollectorProperties properties) {
-        IminfinHttpClient httpClient = new IminfinHttpClient(properties);
-        this.discoveryService = new IminfinReportDiscoveryService(httpClient, properties);
+        this.properties = properties == null ? IminfinCollectorProperties.defaults() : properties;
+        IminfinHttpClient httpClient = new IminfinHttpClient(this.properties);
+        this.discoveryService = new IminfinReportDiscoveryService(httpClient, this.properties);
         this.reportDataLoader = new IminfinReportDataLoader(discoveryService, httpClient);
         this.indicatorTreeParser = new IminfinIndicatorTreeParser();
         this.observationMapper = new IminfinObservationMapper();
@@ -150,7 +157,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String requestedPeriod
     ) {
         String territoryCode = report.defaultValue(DEFAULT_TERRITORY_PARAMETER);
-        IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, territoryCode, requestedPeriod, outcomesType);
+        String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
+        IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, territoryCode, requestedPeriod, outcomesType);
         return indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows()).stream()
                 .map(row -> new ExternalIndicatorRow(
                         groupCode,
@@ -185,9 +193,9 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String requestedPeriod,
             Collection<ExternalRegionRef> regions
     ) {
-        List<ExternalDatasetPayload> result = new ArrayList<>();
-        for (ExternalRegionRef region : regions) {
-            IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, region.externalCode(), requestedPeriod, outcomesType);
+        String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
+        return mapInParallel(regions, region -> {
+            IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, region.externalCode(), requestedPeriod, outcomesType);
             List<IminfinParsedIndicatorRow> parsedRows = indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows());
             List<ExternalObservationRow> observations = observationMapper.mapDetailObservations(
                     region.externalCode(),
@@ -195,9 +203,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     loaded.dataSource(),
                     parsedRows
             );
-            result.add(toPayload(report, loaded, observations));
-        }
-        return result;
+            return toPayload(report, loaded, observations);
+        });
     }
 
     private List<ExternalIndicatorRow> collectCreditIndicators() {
@@ -226,8 +233,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                 .collect(LinkedHashMap::new,
                         (map, region) -> map.putIfAbsent(TextNormalizer.normalize(region.name()), region.externalCode()),
                         Map::putAll);
-        List<ExternalDatasetPayload> result = new ArrayList<>();
-        for (CreditIndicatorSpec spec : creditIndicatorSpecs(source)) {
+        return mapInParallel(creditIndicatorSpecs(source), spec -> {
             IminfinLoadedData loaded = reportDataLoader.loadData(
                     report,
                     CREDIT_DATA_SOURCE,
@@ -238,13 +244,44 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             );
             List<ExternalObservationRow> observations = observationMapper.mapCreditObservations(
                     spec.name(),
+                    spec.parentName(),
                     loaded.dataSource(),
                     loaded.dataRows(),
                     externalCodeByName
             );
-            result.add(toPayload(report, loaded, observations));
+            return toPayload(report, loaded, observations);
+        });
+    }
+
+    private <T, R> List<R> mapInParallel(Collection<T> items, Function<T, R> mapper) {
+        if (items == null || items.isEmpty()) {
+            return List.of();
         }
-        return result;
+        List<T> orderedItems = List.copyOf(items);
+        int parallelism = Math.min(properties.maxParallelRequests(), orderedItems.size());
+        if (parallelism <= 1) {
+            return orderedItems.stream().map(mapper).toList();
+        }
+
+        ExecutorService executor = Executors.newFixedThreadPool(parallelism);
+        try {
+            List<CompletableFuture<R>> futures = orderedItems.stream()
+                    .map(item -> CompletableFuture.supplyAsync(() -> mapper.apply(item), executor))
+                    .toList();
+            List<R> result = new ArrayList<>(futures.size());
+            for (CompletableFuture<R> future : futures) {
+                result.add(future.join());
+            }
+            return result;
+        } catch (CompletionException ex) {
+            Throwable cause = ex.getCause() == null ? ex : ex.getCause();
+            if (cause instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            throw new IllegalStateException("Parallel iMinfin collection failed: " + cause.getMessage(), cause);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private ExternalDatasetPayload toPayload(IminfinReportDefinition report, IminfinLoadedData loaded, List<ExternalObservationRow> observations) {
@@ -285,7 +322,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     private List<CreditIndicatorSpec> creditIndicatorSpecs(IminfinDataSourceDefinition source) {
         List<CreditIndicatorSpec> result = new ArrayList<>();
         String currentParentKey = null;
-        List<String> currentParentPath = List.of();
+        String currentParentName = null;
         int sortOrder = 0;
         Set<String> usedKeys = new HashSet<>();
         for (List<String> row : source.fixedData()) {
@@ -301,20 +338,16 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             boolean child = caption.trim().startsWith("-");
             String cleanCaption = child ? caption.trim().substring(1).trim() : caption.trim();
             String parentKey = child ? currentParentKey : null;
-            List<String> path = new ArrayList<>();
-            if (child) {
-                path.addAll(currentParentPath);
-            }
-            path.add(cleanCaption);
+            String parentName = child ? currentParentName : null;
             String baseKey = parentKey == null
                     ? "credit/" + TextNormalizer.slugify(cleanCaption)
                     : parentKey + "/" + TextNormalizer.slugify(cleanCaption);
             String key = uniqueKey(baseKey, usedKeys);
             if (!child) {
                 currentParentKey = key;
-                currentParentPath = List.of(cleanCaption);
+                currentParentName = cleanCaption;
             }
-            result.add(new CreditIndicatorSpec(key, parentKey, cleanCaption, child ? 1 : 0, sortOrder, parameterValue));
+            result.add(new CreditIndicatorSpec(key, parentKey, cleanCaption, parentName, child ? 1 : 0, sortOrder, parameterValue));
         }
         return result;
     }
@@ -336,6 +369,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String naturalKey,
             String parentNaturalKey,
             String name,
+            String parentName,
             int level,
             int sortOrder,
             String sourceParameterValue

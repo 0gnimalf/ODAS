@@ -25,7 +25,7 @@ public class IminfinIndicatorTreeParser {
         }
         Integer levelIndex = columns.get("level");
         Map<Integer, String> lastKeyByLevel = new HashMap<>();
-        Map<Integer, List<String>> captionsByLevel = new HashMap<>();
+        Map<Integer, String> lastNameByLevel = new HashMap<>();
         Set<String> usedKeys = new HashSet<>();
         List<IntermediateRow> intermediate = new ArrayList<>();
 
@@ -39,18 +39,14 @@ public class IminfinIndicatorTreeParser {
             int externalLevel = intCell(row, levelIndex, 1);
             int level = Math.max(0, externalLevel - 1);
             lastKeyByLevel.keySet().removeIf(existing -> existing >= level + 1);
-            captionsByLevel.keySet().removeIf(existing -> existing >= level + 1);
+            lastNameByLevel.keySet().removeIf(existing -> existing >= level + 1);
             String parentKey = level == 0 ? null : lastKeyByLevel.get(level - 1);
-            String key = buildNaturalKey(namespace, parentKey, caption, sortOrder, usedKeys);
+            String parentName = level == 0 ? null : lastNameByLevel.get(level - 1);
+            String name = caption.trim();
+            String key = buildNaturalKey(namespace, parentKey, name, sortOrder, usedKeys);
             lastKeyByLevel.put(level, key);
-
-            List<String> path = new ArrayList<>();
-            if (level > 0 && captionsByLevel.containsKey(level - 1)) {
-                path.addAll(captionsByLevel.get(level - 1));
-            }
-            path.add(caption.trim());
-            captionsByLevel.put(level, path);
-            intermediate.add(new IntermediateRow(key, parentKey, caption.trim(), level, sortOrder, row));
+            lastNameByLevel.put(level, name);
+            intermediate.add(new IntermediateRow(key, parentKey, name, parentName, level, sortOrder, row));
         }
 
         Set<String> parentKeys = new HashSet<>();
@@ -64,6 +60,7 @@ public class IminfinIndicatorTreeParser {
                         row.naturalKey(),
                         row.parentNaturalKey(),
                         row.name(),
+                        row.parentName(),
                         row.level(),
                         row.sortOrder(),
                         parentKeys.contains(row.naturalKey()),
@@ -106,6 +103,7 @@ public class IminfinIndicatorTreeParser {
             String naturalKey,
             String parentNaturalKey,
             String name,
+            String parentName,
             int level,
             int sortOrder,
             JsonNode row

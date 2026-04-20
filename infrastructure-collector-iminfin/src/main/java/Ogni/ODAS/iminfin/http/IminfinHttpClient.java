@@ -11,6 +11,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.StringJoiner;
@@ -29,25 +30,22 @@ public class IminfinHttpClient {
     }
 
     public String getText(String url) {
-        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
-                .timeout(properties.readTimeout())
-                .GET()
-                .header("Accept", "application/json, text/plain, */*")
-                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
-                .build();
-
-        try {
-            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
-            if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("iMinfin request failed with status " + response.statusCode() + " for " + url);
+        RuntimeException lastFailure = null;
+        int attempts = properties.retryAttempts();
+        for (int attempt = 1; attempt <= attempts; attempt++) {
+            try {
+                return executeGet(url);
+            } catch (RetryableIminfinException ex) {
+                lastFailure = ex;
+                if (attempt == attempts) {
+                    break;
+                }
+                sleepBeforeRetry(attempt);
             }
-            return response.body();
-        } catch (InterruptedException ex) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException("iMinfin request interrupted for " + url + ": " + ex.getMessage(), ex);
-        } catch (IOException ex) {
-            throw new IllegalStateException("iMinfin request failed for " + url + ": " + ex.getMessage(), ex);
         }
+        throw lastFailure == null
+                ? new IllegalStateException("iMinfin request failed for " + url)
+                : lastFailure;
     }
 
     public JsonNode getJson(String url) {
@@ -75,7 +73,61 @@ public class IminfinHttpClient {
         return baseUrl + (baseUrl.contains("?") ? "&" : "?") + joiner;
     }
 
+    private String executeGet(String url) {
+        HttpRequest request = HttpRequest.newBuilder(URI.create(url))
+                .timeout(properties.readTimeout())
+                .GET()
+                .header("Accept", "application/json, text/plain, */*")
+                .header("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64)")
+                .build();
+
+        try {
+            HttpResponse<String> response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
+            int statusCode = response.statusCode();
+            if (statusCode >= 200 && statusCode < 300) {
+                return response.body();
+            }
+            if (isRetryableStatus(statusCode)) {
+                throw new RetryableIminfinException("iMinfin request failed with retryable status " + statusCode + " for " + url);
+            }
+            throw new IllegalStateException("iMinfin request failed with status " + statusCode + " for " + url);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("iMinfin request interrupted for " + url + ": " + ex.getMessage(), ex);
+        } catch (IOException ex) {
+            throw new RetryableIminfinException("iMinfin request failed for " + url + ": " + ex.getMessage(), ex);
+        }
+    }
+
+    private boolean isRetryableStatus(int statusCode) {
+        return statusCode == 429 || statusCode >= 500;
+    }
+
+    private void sleepBeforeRetry(int attempt) {
+        Duration baseBackoff = properties.retryBackoff();
+        long millis = Math.max(0, baseBackoff.toMillis()) * attempt;
+        if (millis <= 0) {
+            return;
+        }
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ex) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException("iMinfin retry sleep interrupted", ex);
+        }
+    }
+
     private String encode(String value) {
         return URLEncoder.encode(value, StandardCharsets.UTF_8);
+    }
+
+    private static final class RetryableIminfinException extends RuntimeException {
+        private RetryableIminfinException(String message) {
+            super(message);
+        }
+
+        private RetryableIminfinException(String message, Throwable cause) {
+            super(message, cause);
+        }
     }
 }

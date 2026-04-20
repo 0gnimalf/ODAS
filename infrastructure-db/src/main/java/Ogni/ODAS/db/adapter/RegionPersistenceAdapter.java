@@ -27,6 +27,11 @@ public class RegionPersistenceAdapter implements RegionPersistencePort {
     }
 
     @Override
+    public boolean existsAny() {
+        return repository.count() > 0;
+    }
+
+    @Override
     public List<Region> findAll() {
         return repository.findAll().stream().map(RegionEntityMapper::toDomain).toList();
     }

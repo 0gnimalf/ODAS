@@ -11,6 +11,7 @@ public record ExternalObservationRow(
         String regionExternalCode,
         IndicatorGroupCode groupCode,
         String indicatorName,
+        String parentIndicatorName,
         ObservationValueKind valueKind,
         BigDecimal value
 ) {

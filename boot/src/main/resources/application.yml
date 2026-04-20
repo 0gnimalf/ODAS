@@ -27,6 +27,9 @@ odas:
   iminfin:
     base-url: ${ODAS_IMINFIN_BASE_URL:https://www.iminfin.ru}
     passport-root: ${ODAS_IMINFIN_PASSPORT_ROOT:/areas-of-analysis/budget/finansoviy-pasport-subjecta-rf}
-    connect-timeout: ${ODAS_IMINFIN_CONNECT_TIMEOUT:20s}
+    connect-timeout: ${ODAS_IMINFIN_CONNECT_TIMEOUT:15s}
     read-timeout: ${ODAS_IMINFIN_READ_TIMEOUT:90s}
     discovery-ttl: ${ODAS_IMINFIN_DISCOVERY_TTL:6h}
+    max-parallel-requests: ${ODAS_IMINFIN_MAX_PARALLEL_REQUESTS:4}
+    retry-attempts: ${ODAS_IMINFIN_RETRY_ATTEMPTS:3}
+    retry-backoff: ${ODAS_IMINFIN_RETRY_BACKOFF:8s}

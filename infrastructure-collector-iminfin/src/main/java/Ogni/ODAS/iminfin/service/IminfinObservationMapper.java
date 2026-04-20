@@ -46,13 +46,14 @@ public class IminfinObservationMapper {
         Map<String, Integer> columns = IminfinJsonTableHelper.columnIndexes(dataSource.columnNames());
         List<ExternalObservationRow> result = new ArrayList<>();
         for (IminfinParsedIndicatorRow row : parsedRows) {
-            addObservations(result, regionExternalCode, groupCode, row.name(), row.row(), columns, DETAIL_BINDINGS);
+            addObservations(result, regionExternalCode, groupCode, row.name(), row.parentName(), row.row(), columns, DETAIL_BINDINGS);
         }
         return result;
     }
 
     public List<ExternalObservationRow> mapCreditObservations(
             String indicatorName,
+            String parentIndicatorName,
             IminfinDataSourceDefinition dataSource,
             JsonNode dataRows,
             Map<String, String> externalRegionCodeByNormalizedName
@@ -69,7 +70,7 @@ public class IminfinObservationMapper {
             if (regionExternalCode == null) {
                 continue;
             }
-            addObservations(result, regionExternalCode, IndicatorGroupCode.CREDIT, indicatorName, row, columns, CREDIT_BINDINGS);
+            addObservations(result, regionExternalCode, IndicatorGroupCode.CREDIT, indicatorName, parentIndicatorName, row, columns, CREDIT_BINDINGS);
         }
         return result;
     }
@@ -79,6 +80,7 @@ public class IminfinObservationMapper {
             String regionExternalCode,
             IndicatorGroupCode groupCode,
             String indicatorName,
+            String parentIndicatorName,
             JsonNode row,
             Map<String, Integer> columns,
             List<ValueBinding> bindings
@@ -94,6 +96,7 @@ public class IminfinObservationMapper {
                     regionExternalCode,
                     groupCode,
                     indicatorName,
+                    parentIndicatorName,
                     binding.valueKind(),
                     value
             ));

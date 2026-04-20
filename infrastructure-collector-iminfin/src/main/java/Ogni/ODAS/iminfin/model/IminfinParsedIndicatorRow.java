@@ -6,6 +6,7 @@ public record IminfinParsedIndicatorRow(
         String naturalKey,
         String parentNaturalKey,
         String name,
+        String parentName,
         int level,
         int sortOrder,
         boolean hasChildren,

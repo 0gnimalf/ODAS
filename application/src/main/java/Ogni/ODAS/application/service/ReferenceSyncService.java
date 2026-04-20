@@ -13,6 +13,7 @@ import Ogni.ODAS.application.port.out.persistence.PeriodPersistencePort;
 import Ogni.ODAS.application.port.out.persistence.RegionPersistencePort;
 import Ogni.ODAS.application.support.SourceRegionCode;
 import Ogni.ODAS.application.support.StaticRegionCatalog;
+import Ogni.ODAS.application.support.TextNormalizer;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.model.Indicator;
 import Ogni.ODAS.domain.model.IndicatorYearEntry;
@@ -20,6 +21,8 @@ import Ogni.ODAS.domain.model.Period;
 import Ogni.ODAS.domain.model.Region;
 
 import java.util.*;
+import java.util.function.BinaryOperator;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 public class ReferenceSyncService implements ReferenceSyncUseCase {
@@ -54,9 +57,13 @@ public class ReferenceSyncService implements ReferenceSyncUseCase {
         this.indicatorYearEntryPersistence = Objects.requireNonNull(indicatorYearEntryPersistence);
     }
 
+    private static <T> BinaryOperator<T> keepFirst() {
+        return (left, right) -> left;
+    }
+
     @Override
     public ReferenceSyncResultDto syncRegionsIfNecessary() {
-        if (!regionPersistence.findAll().isEmpty()) {
+        if (regionPersistence.existsAny()) {
             return ReferenceSyncResultDto.empty();
         }
         return syncRegions();
@@ -128,54 +135,105 @@ public class ReferenceSyncService implements ReferenceSyncUseCase {
     private ReferenceSyncResultDto syncIndicatorGroup(IndicatorGroupCode groupCode, int year) {
         Period yearPeriod = periodPersistence.getOrCreateYear(year);
         List<ExternalIndicatorRow> rows = indicatorCollector.collectIndicators(groupCode, year).stream()
+                .filter(Objects::nonNull)
                 .sorted(Comparator.comparingInt(ExternalIndicatorRow::sortOrder))
                 .toList();
 
         validateUniqueNaturalKeys(rows);
+
+        Map<String, Indicator> indicatorsByIdentity = indicatorPersistence.findAllByGroup(groupCode).stream()
+                .collect(Collectors.toMap(indicator ->
+                                indicatorIdentity(indicator.name(), indicator.indicatorGroupCode()),
+                        Function.identity(),
+                        keepFirst(),
+                        LinkedHashMap::new));
+
+        List<Indicator> indicatorsToCreate = rows.stream()
+                .filter(row -> row.name() != null && !row.name().isBlank())
+                .map(row -> new Indicator(null, row.name(), row.groupCode()))
+                .filter(indicator -> !indicatorsByIdentity.containsKey(indicatorIdentity(indicator.name(), indicator.indicatorGroupCode())))
+                .collect(Collectors.collectingAndThen(
+                        Collectors.toMap(indicator ->
+                                        indicatorIdentity(indicator.name(), indicator.indicatorGroupCode()),
+                                Function.identity(),
+                                keepFirst(),
+                                LinkedHashMap::new),
+                        map -> new ArrayList<>(map.values())
+                ));
+
+        if (!indicatorsToCreate.isEmpty()) {
+            for (Indicator saved : indicatorPersistence.saveAll(indicatorsToCreate)) {
+                indicatorsByIdentity.put(indicatorIdentity(saved.name(), saved.indicatorGroupCode()), saved);
+            }
+        }
+
+        Map<Long, Indicator> indicatorsById = indicatorsByIdentity.values().stream()
+                .collect(Collectors.toMap(Indicator::id, Function.identity(), keepFirst(), LinkedHashMap::new));
+        Set<Long> groupIndicatorIds = indicatorsById.keySet();
+        Map<EntryIdentity, IndicatorYearEntry> existingEntries = indicatorYearEntryPersistence.findAllByPeriodId(yearPeriod.id()).stream()
+                .filter(entry -> groupIndicatorIds.contains(entry.indicatorId()))
+                .collect(Collectors.toMap(
+                        entry -> new EntryIdentity(entry.indicatorId(), entry.parentIndicatorYearEntryId()),
+                        Function.identity(),
+                        keepFirst(),
+                        LinkedHashMap::new
+                ));
+
+        Map<String, IndicatorYearEntry> entryByNaturalKey = new LinkedHashMap<>();
         int created = 0;
         int updated = 0;
         int skipped = 0;
-        Map<String, IndicatorYearEntry> entryByNaturalKey = new HashMap<>();
 
-        for (ExternalIndicatorRow row : rows) {
-            if (row == null || row.name() == null || row.name().isBlank()) {
-                skipped++;
-                continue;
-            }
+        Map<Integer, List<ExternalIndicatorRow>> rowsByLevel = rows.stream()
+                .filter(row -> row.name() != null && !row.name().isBlank())
+                .collect(Collectors.groupingBy(ExternalIndicatorRow::level, TreeMap::new, Collectors.toList()));
 
-            Indicator indicator = indicatorPersistence.findByNameAndGroup(row.name(), row.groupCode())
-                    .orElseGet(() -> indicatorPersistence.save(new Indicator(null, row.name(), row.groupCode())));
+        for (Map.Entry<Integer, List<ExternalIndicatorRow>> levelBucket : rowsByLevel.entrySet()) {
+            List<IndicatorYearEntry> entriesToSave = new ArrayList<>();
+            List<ExternalIndicatorRow> correspondingRows = new ArrayList<>();
 
-            Long parentId = null;
-            if (row.parentNaturalKey() != null && !row.parentNaturalKey().isBlank()) {
-                IndicatorYearEntry parent = entryByNaturalKey.get(row.parentNaturalKey());
-                if (parent == null) {
-                    throw new IllegalStateException("Parent indicator was not synced before child: " + row.parentNaturalKey());
+            for (ExternalIndicatorRow row : levelBucket.getValue()) {
+                Indicator indicator = indicatorsByIdentity.get(indicatorIdentity(row.name(), row.groupCode()));
+                if (indicator == null) {
+                    skipped++;
+                    continue;
                 }
-                parentId = parent.id();
+
+                Long parentId = null;
+                if (row.parentNaturalKey() != null && !row.parentNaturalKey().isBlank()) {
+                    IndicatorYearEntry parent = entryByNaturalKey.get(row.parentNaturalKey());
+                    if (parent == null) {
+                        throw new IllegalStateException("Parent indicator was not synced before child: " + row.parentNaturalKey());
+                    }
+                    parentId = parent.id();
+                }
+
+                EntryIdentity identity = new EntryIdentity(indicator.id(), parentId);
+                IndicatorYearEntry existing = existingEntries.get(identity);
+                IndicatorYearEntry entry = new IndicatorYearEntry(
+                        existing == null ? null : existing.id(),
+                        yearPeriod.id(),
+                        indicator.id(),
+                        parentId,
+                        row.level(),
+                        row.sortOrder(),
+                        row.hasChildren()
+                );
+                entriesToSave.add(entry);
+                correspondingRows.add(row);
+                if (existing == null) {
+                    created++;
+                } else {
+                    updated++;
+                }
             }
 
-            Optional<IndicatorYearEntry> existing = indicatorYearEntryPersistence.findByIndicatorIdAndPeriodIdAndParentId(
-                    indicator.id(),
-                    yearPeriod.id(),
-                    parentId
-            );
-            IndicatorYearEntry entry = new IndicatorYearEntry(
-                    existing.map(IndicatorYearEntry::id).orElse(null),
-                    yearPeriod.id(),
-                    indicator.id(),
-                    parentId,
-                    row.level(),
-                    row.sortOrder(),
-                    row.hasChildren()
-            );
-            IndicatorYearEntry saved = indicatorYearEntryPersistence.save(entry);
-            entryByNaturalKey.put(row.naturalKey(), saved);
-            if (existing.isPresent()) {
-                System.out.println("Duplicate indicator: " + entry.id());
-                updated++;
-            } else {
-                created++;
+            List<IndicatorYearEntry> savedEntries = indicatorYearEntryPersistence.saveAll(entriesToSave);
+            for (int i = 0; i < savedEntries.size(); i++) {
+                IndicatorYearEntry saved = savedEntries.get(i);
+                ExternalIndicatorRow row = correspondingRows.get(i);
+                entryByNaturalKey.put(row.naturalKey(), saved);
+                existingEntries.put(new EntryIdentity(saved.indicatorId(), saved.parentIndicatorYearEntryId()), saved);
             }
         }
         return new ReferenceSyncResultDto(rows.size(), created, updated, skipped);
@@ -191,5 +249,12 @@ public class ReferenceSyncService implements ReferenceSyncUseCase {
                 .ifPresent(entry -> {
                     throw new IllegalStateException("Duplicate external indicator key: " + entry.getKey());
                 });
+    }
+
+    private String indicatorIdentity(String name, IndicatorGroupCode groupCode) {
+        return TextNormalizer.normalize(name) + "|" + groupCode;
+    }
+
+    private record EntryIdentity(Long indicatorId, Long parentIndicatorYearEntryId) {
     }
 }
