@@ -18,7 +18,7 @@ import java.time.OffsetDateTime;
 @Entity
 @Table(name = "dataset_collection",
         indexes = @Index(
-                name = "idx_dataset_collection_dataset_version_id_collected_at",
+                name = "idx_dataset_collection_version_collected_at",
                 columnList = "dataset_version_id, collected_at"
         )
 )

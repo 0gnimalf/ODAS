@@ -13,7 +13,7 @@ public interface IndicatorPersistencePort {
 
     List<Indicator> saveAll(Collection<Indicator> indicators);
 
-    Optional<Indicator> findByNameAndGroup(String name, IndicatorGroupCode groupCode);
+    Optional<Indicator> findByGroupAndName(IndicatorGroupCode groupCode, String name);
 
     List<Indicator> findAllByGroup(IndicatorGroupCode groupCode);
 }

@@ -2,11 +2,9 @@ package Ogni.ODAS.application.dto.read;
 
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
 import Ogni.ODAS.domain.enumtype.ObservationValueType;
-import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import Ogni.ODAS.domain.enumtype.UnitCode;
 
 import java.math.BigDecimal;
-import java.time.OffsetDateTime;
 
 public record ObservationReadDto(
         Long observationId,
@@ -19,10 +17,6 @@ public record ObservationReadDto(
         UnitCode unitCode,
         ObservationValueType valueType,
         BigDecimal value,
-        Long datasetCollectionId,
-        OffsetDateTime collectedAt,
-        SourceSystemCode sourceSystemCode,
-        String externalDatasetTitle,
-        OffsetDateTime externalDatasetModifiedAt
+        Long datasetCollectionId
 ) {
 }

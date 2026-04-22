@@ -7,7 +7,6 @@ import Ogni.ODAS.application.port.out.persistence.StoredDataQueryPort;
 import Ogni.ODAS.domain.enumtype.FederalDistrictCode;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
 import Ogni.ODAS.domain.enumtype.ObservationValueKind;
-import Ogni.ODAS.domain.enumtype.SourceSystemCode;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -53,7 +52,7 @@ public class StoredDataQueryAdapter implements StoredDataQueryPort {
                     JOIN indicator i ON i.id = iye.indicator_id
                 WHERE iye.period_id = :periodId
                   AND i.indicator_group_code = :groupCode
-                ORDER BY iye.level, iye.sort_order, i.name
+                ORDER BY iye.level, iye.sort_order
                 """;
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("periodId", yearPeriodId)
@@ -69,6 +68,9 @@ public class StoredDataQueryAdapter implements StoredDataQueryPort {
             Collection<Long> indicatorYearEntryIds,
             Set<ObservationValueKind> valueKinds
     ) {
+        List<Long> normalizedRegionIds = requireNonEmptyLongFilter(regionIds, "regionIds");
+        List<Long> normalizedIndicatorYearEntryIds = requireNonEmptyLongFilter(indicatorYearEntryIds, "indicatorYearEntryIds");
+
         StringBuilder sql = new StringBuilder("""
                 SELECT
                     o.id AS observation_id,
@@ -78,46 +80,40 @@ public class StoredDataQueryAdapter implements StoredDataQueryPort {
                     i.name AS indicator_name,
                     o.observation_value_kind,
                     o.value,
-                    o.dataset_collection_id,
-                    dc.collected_at,
-                    dv.source_system_code,
-                    dv.external_title,
-                    dv.external_date_modified
+                    o.dataset_collection_id
                 FROM observation o
                     JOIN region r ON r.id = o.region_id
                     JOIN indicator_year_entry iye ON iye.id = o.indicator_year_entry_id
                     JOIN indicator i ON i.id = iye.indicator_id
-                    JOIN dataset_collection dc ON dc.id = o.dataset_collection_id
-                    JOIN dataset_version dv ON dv.id = dc.dataset_version_id
                 WHERE o.period_id = :periodId
                   AND i.indicator_group_code = :groupCode
+                  AND o.region_id IN (:regionIds)
+                  AND o.indicator_year_entry_id IN (:indicatorYearEntryIds)
                 """);
 
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("periodId", periodId)
-                .addValue("groupCode", groupCode.name());
+                .addValue("groupCode", groupCode.name())
+                .addValue("regionIds", normalizedRegionIds)
+                .addValue("indicatorYearEntryIds", normalizedIndicatorYearEntryIds);
 
-        addLongInFilter(sql, params, "o.region_id", "regionIds", regionIds);
-        addLongInFilter(sql, params, "o.indicator_year_entry_id", "indicatorYearEntryIds", indicatorYearEntryIds);
         if (valueKinds != null && !valueKinds.isEmpty()) {
             params.addValue("valueKinds", valueKinds.stream().map(Enum::name).toList());
             sql.append(" AND o.observation_value_kind IN (:valueKinds)\n");
         }
-        sql.append(" ORDER BY r.name, iye.sort_order, i.name");
+//        sql.append(" ORDER BY r.name, iye.sort_order, i.name");
 
         return jdbcTemplate.query(sql.toString(), params, (rs, rowNum) -> toObservation(rs));
     }
 
-    private void addLongInFilter(StringBuilder sql, MapSqlParameterSource params, String columnName, String parameterName, Collection<Long> values) {
-        if (values == null || values.isEmpty()) {
-            return;
-        }
-        List<Long> normalized = values.stream().filter(Objects::nonNull).distinct().toList();
+    private List<Long> requireNonEmptyLongFilter(Collection<Long> values, String parameterName) {
+        List<Long> normalized = values == null
+                ? List.of()
+                : values.stream().filter(Objects::nonNull).distinct().toList();
         if (normalized.isEmpty()) {
-            return;
+            throw new IllegalArgumentException(parameterName + " must contain at least one id");
         }
-        params.addValue(parameterName, normalized);
-        sql.append(" AND ").append(columnName).append(" IN (:").append(parameterName).append(")\n");
+        return normalized;
     }
 
     private RegionReadDto toRegion(ResultSet rs) throws SQLException {
@@ -159,11 +155,7 @@ public class StoredDataQueryAdapter implements StoredDataQueryPort {
                 valueKind.getUnitCode(),
                 valueKind.getObservationValueType(),
                 rs.getBigDecimal("value"),
-                rs.getLong("dataset_collection_id"),
-                rs.getObject("collected_at", java.time.OffsetDateTime.class),
-                SourceSystemCode.valueOf(rs.getString("source_system_code")),
-                rs.getString("external_title"),
-                rs.getObject("external_date_modified", java.time.OffsetDateTime.class)
+                rs.getLong("dataset_collection_id")
         );
     }
 

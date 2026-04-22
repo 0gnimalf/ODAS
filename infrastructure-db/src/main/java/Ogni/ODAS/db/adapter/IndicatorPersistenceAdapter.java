@@ -34,8 +34,8 @@ public class IndicatorPersistenceAdapter implements IndicatorPersistencePort {
     }
 
     @Override
-    public Optional<Indicator> findByNameAndGroup(String name, IndicatorGroupCode groupCode) {
-        return repository.findByNameAndIndicatorGroupCode(name, groupCode).map(IndicatorEntityMapper::toDomain);
+    public Optional<Indicator> findByGroupAndName(IndicatorGroupCode groupCode, String name) {
+        return repository.findByIndicatorGroupCodeAndName(groupCode, name).map(IndicatorEntityMapper::toDomain);
     }
 
     @Override

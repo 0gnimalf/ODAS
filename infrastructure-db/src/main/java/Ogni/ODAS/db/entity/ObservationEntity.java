@@ -20,10 +20,9 @@ import java.math.BigDecimal;
                 columnNames = {"region_id", "indicator_year_entry_id", "period_id", "observation_value_kind"}
         ),
         indexes = {
-                @Index(name = "idx_observation_dataset_collection_id", columnList = "dataset_collection_id"),
-                @Index(name = "idx_observation_region_id_period_id", columnList = "region_id, period_id"),
-                @Index(name = "idx_observation_indicator_year_entry_id_period_id", columnList = "indicator_year_entry_id, period_id"),
-                @Index(name = "idx_observation_period_id", columnList = "period_id")
+                @Index(name = "idx_observation_dataset_collection", columnList = "dataset_collection_id"),
+                @Index(name = "idx_observation_read_period_region_indicator_kind", columnList = "period_id, region_id, indicator_year_entry_id, observation_value_kind"),
+                @Index(name = "idx_observation_read_period_indicator_region_kind", columnList = "period_id, indicator_year_entry_id, region_id, observation_value_kind")
         }
 )
 public class ObservationEntity {

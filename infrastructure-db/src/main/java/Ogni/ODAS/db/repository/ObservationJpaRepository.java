@@ -16,15 +16,15 @@ public interface ObservationJpaRepository extends JpaRepository<ObservationEntit
             ObservationValueKind observationValueKind
     );
 
-    List<ObservationEntity> findAllByRegionIdAndIndicatorYearEntryIdAndPeriodId(
+    List<ObservationEntity> findAllByPeriodIdAndRegionIdAndIndicatorYearEntryId(
+            Long periodId,
             Long regionId,
-            Long indicatorYearEntryId,
-            Long periodId
+            Long indicatorYearEntryId
     );
 
-    List<ObservationEntity> findAllByRegionIdAndPeriodId(Long regionId, Long periodId);
+    List<ObservationEntity> findAllPeriodIdAndByRegionId(Long periodId, Long regionId);
 
-    List<ObservationEntity> findAllByIndicatorYearEntryIdAndPeriodId(Long indicatorYearEntryId, Long periodId);
+    List<ObservationEntity> findAllByPeriodIdAndIndicatorYearEntryId(Long periodId, Long indicatorYearEntryId);
 
     List<ObservationEntity> findAllByPeriodId(Long periodId);
 

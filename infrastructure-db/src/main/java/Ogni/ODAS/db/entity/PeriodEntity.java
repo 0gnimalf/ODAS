@@ -7,13 +7,18 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
-
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "period")
+@Table(name = "period",
+        uniqueConstraints = @UniqueConstraint(
+                name = "uk_period_identity",
+                columnNames = {"period_type", "year", "month", "quarter"}
+        ),
+        indexes = @Index(name = "idx_period_year", columnList = "year")
+)
 public class PeriodEntity {
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "period_seq_gen")

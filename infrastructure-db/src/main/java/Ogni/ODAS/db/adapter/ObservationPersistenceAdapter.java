@@ -25,7 +25,7 @@ public class ObservationPersistenceAdapter implements ObservationPersistencePort
                 value
             )
             VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT (region_id, indicator_year_entry_id, period_id, observation_value_kind)
+            ON CONFLICT (period_id, region_id, indicator_year_entry_id, observation_value_kind)
             DO UPDATE SET
                 dataset_collection_id = EXCLUDED.dataset_collection_id,
                 value = EXCLUDED.value

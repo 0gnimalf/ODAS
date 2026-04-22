@@ -25,11 +25,9 @@ CREATE TABLE IF NOT EXISTS period
             (period_type = 'YEAR' AND month IS NULL AND quarter IS NULL)
                 OR (period_type = 'MONTH' AND month BETWEEN 1 AND 12 AND quarter IS NULL)
                 OR (period_type = 'QUARTER' AND month IS NULL AND quarter BETWEEN 1 AND 4)
-            )
+            ),
+    CONSTRAINT uk_period_identity UNIQUE NULLS NOT DISTINCT (period_type, year, month, quarter)
 );
-
-CREATE UNIQUE INDEX IF NOT EXISTS uk_period_identity
-    ON period (period_type, year, month, quarter) NULLS NOT DISTINCT;
 
 CREATE TABLE IF NOT EXISTS dataset_version
 (
@@ -55,7 +53,7 @@ CREATE TABLE IF NOT EXISTS indicator
     id                   BIGINT PRIMARY KEY DEFAULT NEXTVAL('indicator_seq'),
     name                 VARCHAR(2000) NOT NULL,
     indicator_group_code VARCHAR(32)   NOT NULL,
-    CONSTRAINT uk_indicator_name_indicator_group_code UNIQUE (name, indicator_group_code)
+    CONSTRAINT idx_indicator_group_name UNIQUE (indicator_group_code, name)
 );
 
 CREATE TABLE IF NOT EXISTS indicator_year_entry
@@ -96,38 +94,4 @@ CREATE TABLE IF NOT EXISTS observation
     CONSTRAINT fk_observation_region FOREIGN KEY (region_id) REFERENCES region (id),
     CONSTRAINT fk_observation_indicator_year_entry FOREIGN KEY (indicator_year_entry_id) REFERENCES indicator_year_entry (id),
     CONSTRAINT fk_observation_period FOREIGN KEY (period_id) REFERENCES period (id)
-
 );
-
-CREATE INDEX IF NOT EXISTS idx_dataset_collection_dataset_version_id_collected_at
-    ON dataset_collection (dataset_version_id, collected_at);
-
-CREATE INDEX IF NOT EXISTS idx_region_federal_district_code
-    ON region (federal_district_code);
-
-CREATE INDEX IF NOT EXISTS idx_region_name
-    ON region (name);
-
-CREATE INDEX IF NOT EXISTS idx_indicator_year_entry_parent_sort
-    ON indicator_year_entry (parent_indicator_year_entry_id, sort_order);
-
-CREATE INDEX IF NOT EXISTS idx_indicator_year_entry_period_sort
-    ON indicator_year_entry (period_id, sort_order);
-
-CREATE INDEX IF NOT EXISTS idx_observation_dataset_collection_id
-    ON observation (dataset_collection_id);
-
-CREATE INDEX IF NOT EXISTS idx_observation_indicator_year_entry_id_period_id
-    ON observation (indicator_year_entry_id, period_id);
-
-CREATE INDEX IF NOT EXISTS idx_observation_period_id
-    ON observation (period_id);
-
-CREATE INDEX IF NOT EXISTS idx_observation_region_id_period_id
-    ON observation (region_id, period_id);
-
-CREATE INDEX IF NOT EXISTS idx_indicator_year_entry_period_parent_sort
-    ON indicator_year_entry (period_id, parent_indicator_year_entry_id, sort_order);
-
-CREATE INDEX IF NOT EXISTS idx_indicator_year_entry_period_indicator
-    ON indicator_year_entry (period_id, indicator_id);

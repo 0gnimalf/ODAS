@@ -14,8 +14,8 @@ import lombok.Setter;
 @Entity
 @Table(name = "indicator",
         uniqueConstraints = @UniqueConstraint(
-                name = "uk_indicator_name_indicator_group_code",
-                columnNames = {"name", "indicator_group_code"}
+                name = "idx_indicator_group_name",
+                columnNames = {"indicator_group_code", "name"}
         )
 )
 public class IndicatorEntity {

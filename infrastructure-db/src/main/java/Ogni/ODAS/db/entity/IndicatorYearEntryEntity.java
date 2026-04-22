@@ -17,6 +17,8 @@ import lombok.Setter;
                 columnNames = {"indicator_id", "period_id", "parent_indicator_year_entry_id"}
         ),
         indexes = {
+                @Index(name = "idx_indicator_year_entry_period_indicator", columnList = "period_id, indicator_id"),
+                @Index(name = "idx_indicator_year_entry_period_level_sort", columnList = "period_id, level, sort_order"),
                 @Index(name = "idx_indicator_year_entry_period_sort", columnList = "period_id, sort_order"),
                 @Index(name = "idx_indicator_year_entry_parent_sort", columnList = "parent_indicator_year_entry_id, sort_order")
         }

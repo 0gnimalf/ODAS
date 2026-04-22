@@ -31,8 +31,16 @@ public class StoredDataReadService implements StoredDataReadUseCase {
         return Comparator.nullsLast(String::compareTo).compare(left.name(), right.name());
     }
 
-    private static List<Long> safeList(List<Long> values) {
+    private static List<Long> safeList(Collection<Long> values) {
         return values == null ? List.of() : values.stream().filter(Objects::nonNull).distinct().toList();
+    }
+
+    private static List<Long> requireNonEmptyLongList(Collection<Long> values, String fieldName) {
+        List<Long> normalized = safeList(values);
+        if (normalized.isEmpty()) {
+            throw new IllegalArgumentException(fieldName + " must contain at least one id");
+        }
+        return normalized;
     }
 
     @Override
@@ -44,7 +52,6 @@ public class StoredDataReadService implements StoredDataReadUseCase {
 
     @Override
     public List<RegionReadDto> getRegions() {
-        // по-другому
         return storedDataQuery.findRegions();
     }
 
@@ -52,32 +59,32 @@ public class StoredDataReadService implements StoredDataReadUseCase {
     public List<IndicatorTreeNodeReadDto> getIndicatorTree(IndicatorGroupCode groupCode, int year) {
         Objects.requireNonNull(groupCode, "groupCode must not be null");
         Optional<Period> yearPeriod = periodPersistence.findByIdentity(PeriodType.YEAR, year, null, null);
-        return yearPeriod.map(period ->
-                buildTree(
-                        // по-другому
-                        storedDataQuery.findIndicatorEntries(groupCode, period.id()))
-        ).orElseGet(List::of);
+        return yearPeriod.map(period -> buildTree(storedDataQuery.findIndicatorEntries(groupCode, period.id())))
+                .orElseGet(List::of);
     }
 
     @Override
     public ObservationReadResultDto getObservations(ReadObservationsCommand command) {
         validate(command);
+        List<Long> regionIds = command.regionIds();
+        List<Long> requestedIndicatorIds = command.indicatorYearEntryIds();
+
         Optional<Period> period = periodPersistence.findByIdentity(PeriodType.MONTH, command.year(), command.month(), null);
         if (period.isEmpty()) {
             return new ObservationReadResultDto(command.groupCode(), command.year(), command.month(), null,
-                    safeList(command.regionIds()), safeList(command.indicatorYearEntryIds()), 0, List.of());
+                    regionIds, requestedIndicatorIds, 0, List.of());
         }
 
         Collection<Long> indicatorIds = resolveIndicatorFilter(command);
         List<ObservationReadDto> observations = storedDataQuery.findObservations(
                 command.groupCode(),
                 period.get().id(),
-                command.regionIds(),
+                regionIds,
                 indicatorIds,
                 command.valueKinds()
         );
         return new ObservationReadResultDto(command.groupCode(), command.year(), command.month(), period.get().id(),
-                safeList(command.regionIds()), new ArrayList<>(indicatorIds), observations.size(), observations);
+                regionIds, new ArrayList<>(indicatorIds), observations.size(), observations);
     }
 
     private void validate(ReadObservationsCommand command) {
@@ -88,11 +95,13 @@ public class StoredDataReadService implements StoredDataReadUseCase {
         if (command.month() < 1 || command.month() > 12) {
             throw new IllegalArgumentException("month must be between 1 and 12");
         }
+        requireNonEmptyLongList(command.regionIds(), "regionIds");
+        requireNonEmptyLongList(command.indicatorYearEntryIds(), "indicatorYearEntryIds");
     }
 
     private Collection<Long> resolveIndicatorFilter(ReadObservationsCommand command) {
-        List<Long> requested = safeList(command.indicatorYearEntryIds());
-        if (requested.isEmpty() || !command.includeChildren()) {
+        List<Long> requested = command.indicatorYearEntryIds();
+        if (!command.includeChildren()) {
             return requested;
         }
 
