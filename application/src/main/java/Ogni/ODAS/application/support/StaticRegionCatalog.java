@@ -114,8 +114,8 @@ public final class StaticRegionCatalog {
             new Entry("Чукотский автономный округ", FederalDistrictCode.DFO),
 
             new Entry("Нет федерального округа", FederalDistrictCode.NONE),
-            new Entry("г. Байконур", FederalDistrictCode.NONE),
-            new Entry("Сириус", FederalDistrictCode.NONE),
+//            new Entry("г. Байконур", FederalDistrictCode.NONE),
+//            new Entry("Сириус", FederalDistrictCode.NONE),
 
             new Entry("Донецкая Народная Республика", FederalDistrictCode.NONE),
             new Entry("Запорожская область", FederalDistrictCode.NONE),

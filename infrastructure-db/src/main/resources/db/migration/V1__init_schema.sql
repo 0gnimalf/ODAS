@@ -126,3 +126,8 @@ CREATE INDEX IF NOT EXISTS idx_observation_period_id
 CREATE INDEX IF NOT EXISTS idx_observation_region_id_period_id
     ON observation (region_id, period_id);
 
+CREATE INDEX IF NOT EXISTS idx_indicator_year_entry_period_parent_sort
+    ON indicator_year_entry (period_id, parent_indicator_year_entry_id, sort_order);
+
+CREATE INDEX IF NOT EXISTS idx_indicator_year_entry_period_indicator
+    ON indicator_year_entry (period_id, indicator_id);

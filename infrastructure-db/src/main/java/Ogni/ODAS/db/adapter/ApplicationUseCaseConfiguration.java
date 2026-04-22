@@ -2,17 +2,27 @@ package Ogni.ODAS.db.adapter;
 
 import Ogni.ODAS.application.port.in.ObservationCollectionUseCase;
 import Ogni.ODAS.application.port.in.ReferenceSyncUseCase;
+import Ogni.ODAS.application.port.in.StoredDataReadUseCase;
 import Ogni.ODAS.application.port.out.collector.ExternalIndicatorCollectorPort;
 import Ogni.ODAS.application.port.out.collector.ExternalObservationCollectorPort;
 import Ogni.ODAS.application.port.out.collector.ExternalRegionCollectorPort;
 import Ogni.ODAS.application.port.out.persistence.*;
 import Ogni.ODAS.application.service.ObservationCollectionService;
 import Ogni.ODAS.application.service.ReferenceSyncService;
+import Ogni.ODAS.application.service.StoredDataReadService;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class ApplicationUseCaseConfiguration {
+
+    @Bean
+    public StoredDataReadUseCase storedDataReadUseCase(
+            PeriodPersistencePort periodPersistence,
+            StoredDataQueryPort storedDataQuery
+    ) {
+        return new StoredDataReadService(periodPersistence, storedDataQuery);
+    }
 
     @Bean
     public ReferenceSyncUseCase referenceSyncUseCase(
