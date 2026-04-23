@@ -3,7 +3,11 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
-data/database/
+# UI module
+ui/node_modules/
+ui/dist/
+ui/.vite/
+
 
 ### IntelliJ IDEA ###
 .idea/
