@@ -15,6 +15,7 @@ public record ObservationReadDto(
         ObservationValueKind valueKind,
         String valueKindLabel,
         UnitCode unitCode,
+        String unitCodeLabel,
         ObservationValueType valueType,
         BigDecimal value,
         Long datasetCollectionId

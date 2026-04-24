@@ -153,6 +153,7 @@ public class StoredDataQueryAdapter implements StoredDataQueryPort {
                 valueKind,
                 valueKind.getLabel(),
                 valueKind.getUnitCode(),
+                valueKind.getUnitCode().getLabel(),
                 valueKind.getObservationValueType(),
                 rs.getBigDecimal("value"),
                 rs.getLong("dataset_collection_id")

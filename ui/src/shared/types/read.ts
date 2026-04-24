@@ -35,6 +35,7 @@ export interface ObservationReadDto {
     valueKind: string;
     valueKindLabel: string;
     unitCode: string;
+    unitCodeLabel: string;
     valueType: string;
     value: number;
     datasetCollectionId: number;

@@ -58,7 +58,7 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                             <th>Регион</th>
                             <th>Показатель</th>
                             <th>Вид значения</th>
-                            <th>Тип значения</th>
+                            {/*<th>Тип значения</th>*/}
                             <th>Ед. изм.</th>
                             <th>Значение</th>
                             <th>Dataset</th>
@@ -70,8 +70,8 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                                 <td>{observation.regionName}</td>
                                 <td>{observation.indicatorName}</td>
                                 <td>{observation.valueKindLabel}</td>
-                                <td>{observation.valueType}</td>
-                                <td>{observation.unitCode}</td>
+                                {/*<td>{observation.valueType}</td>*/}
+                                <td>{observation.unitCodeLabel}</td>
                                 <td>{formatObservationValue(observation.value)}</td>
                                 <td>{observation.datasetCollectionId}</td>
                             </tr>
