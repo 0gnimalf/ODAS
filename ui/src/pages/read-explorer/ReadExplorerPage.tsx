@@ -13,9 +13,8 @@ import type {
     ObservationReadResultDto,
     RegionReadDto
 } from '../../shared/types/read';
-import {RegionCompareBarChart} from '../../widgets/charts/RegionCompareBarChart';
 import {FilterPanel} from '../../widgets/filter-panel/FilterPanel';
-import {ObservationTable} from '../../widgets/observation-table/ObservationTable';
+import {ResultDisplayPanel} from '../../widgets/result-views/ResultDisplayPanel';
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -200,7 +199,7 @@ export function ReadExplorerPage() {
                 <div className="status-badges">
                     <span className="status-badge">React</span>
                     <span className="status-badge">Apache ECharts</span>
-                    <span className="status-badge">v2</span>
+                    <span className="status-badge">v3</span>
                 </div>
             </header>
 
@@ -250,15 +249,12 @@ export function ReadExplorerPage() {
                         loadingObservations={observationLoading}
                     />
 
-                    <div className="results-stack">
-                        <RegionCompareBarChart result={observationResult}/>
-                        <ObservationTable
-                            result={observationResult}
-                            loading={observationLoading}
-                            error={observationError}
-                            isDirty={isDirty}
-                        />
-                    </div>
+                    <ResultDisplayPanel
+                        result={observationResult}
+                        loading={observationLoading}
+                        error={observationError}
+                        isDirty={isDirty}
+                    />
                 </>
             )}
         </main>
