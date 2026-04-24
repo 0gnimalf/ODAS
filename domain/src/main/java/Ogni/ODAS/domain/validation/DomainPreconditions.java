@@ -3,6 +3,8 @@ package Ogni.ODAS.domain.validation;
 import Ogni.ODAS.domain.exception.DomainValidationException;
 
 import java.util.Collection;
+import java.util.LinkedHashSet;
+import java.util.List;
 
 public final class DomainPreconditions {
 
@@ -70,6 +72,35 @@ public final class DomainPreconditions {
             DomainPreconditions.positive(id, fieldName);
         }
         return id;
+    }
+
+    public static List<Long> normalizeNonEmptyIds(Collection<Long> values, String fieldName) {
+        if (values == null || values.isEmpty()) {
+            throw new DomainValidationException(fieldName + " must contain at least one id");
+        }
+        LinkedHashSet<Long> normalized = new LinkedHashSet<>();
+        for (Long value : values) {
+            if (value != null) {
+                normalized.add(value);
+            }
+        }
+        if (normalized.isEmpty()) {
+            throw new DomainValidationException(fieldName + " must contain at least one id");
+        }
+        return List.copyOf(normalized);
+    }
+
+    public static List<Long> normalizeOptionalIds(Collection<Long> values) {
+        if (values == null || values.isEmpty()) {
+            return List.of();
+        }
+        LinkedHashSet<Long> normalized = new LinkedHashSet<>();
+        for (Long value : values) {
+            if (value != null) {
+                normalized.add(value);
+            }
+        }
+        return List.copyOf(normalized);
     }
 
     public static void require(boolean expression, String message) {
