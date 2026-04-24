@@ -10,6 +10,10 @@ interface IndicatorTreePanelProps {
     includeChildren: boolean;
     onSelectedIdsChange: (value: number[]) => void;
     onIncludeChildrenChange: (value: boolean) => void;
+    embedded?: boolean;
+    canSyncTree?: boolean;
+    syncingTree?: boolean;
+    onSyncTree?: () => void;
 }
 
 export function IndicatorTreePanel({
@@ -19,7 +23,11 @@ export function IndicatorTreePanel({
                                        selectedIds,
                                        includeChildren,
                                        onSelectedIdsChange,
-                                       onIncludeChildrenChange
+                                       onIncludeChildrenChange,
+                                       embedded = false,
+                                       canSyncTree = false,
+                                       syncingTree = false,
+                                       onSyncTree
                                    }: IndicatorTreePanelProps) {
     const [search, setSearch] = useState('');
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
@@ -51,9 +59,10 @@ export function IndicatorTreePanel({
     };
 
     const isSearchMode = search.trim().length > 0;
+    const rootClassName = embedded ? 'tree-panel-embedded' : 'panel tree-panel';
 
     return (
-        <section className="panel tree-panel">
+        <section className={rootClassName}>
             <div className="panel-header compact-gap">
                 <div>
                     <h2>Дерево показателей</h2>
@@ -84,8 +93,11 @@ export function IndicatorTreePanel({
             </div>
 
             <label className="check-row include-children-row">
-                <input type="checkbox" checked={includeChildren}
-                       onChange={(event) => onIncludeChildrenChange(event.target.checked)}/>
+                <input
+                    type="checkbox"
+                    checked={includeChildren}
+                    onChange={(event) => onIncludeChildrenChange(event.target.checked)}
+                />
                 <span>Запросить также дочерние показатели</span>
             </label>
 
@@ -95,21 +107,37 @@ export function IndicatorTreePanel({
                     <div className="selected-chip-list">
                         {selectedNames.slice(0, 8).map((name) => (
                             <span key={name} className="chip">
-                {name}
-              </span>
+                                {name}
+                            </span>
                         ))}
                         {selectedNames.length > 8 && <span className="chip">+ ещё {selectedNames.length - 8}</span>}
                     </div>
                 )}
             </div>
 
-            <div className="tree-content">
+            <div className="tree-content tree-content-embedded">
                 {loading && <div className="empty-state">Загрузка дерева…</div>}
                 {!loading && error && <div className="error-state">{error}</div>}
-                {!loading && !error && filteredTree.length === 0 &&
-                    <div className="empty-state">Нет узлов для отображения.</div>}
+                {!loading && !error && filteredTree.length === 0 && tree.length > 0 && (
+                    <div className="empty-state">Нет узлов для отображения.</div>
+                )}
+                {!loading && !error && tree.length === 0 && (
+                    <div className="tree-empty-state">
+                        <div className="empty-state compact">Для выбранных группы и года дерево пока не загружено.</div>
+                        {onSyncTree && (
+                            <button
+                                type="button"
+                                className="primary-button"
+                                onClick={onSyncTree}
+                                disabled={!canSyncTree || syncingTree}
+                            >
+                                {syncingTree ? 'Синхронизация…' : 'Синхронизировать дерево'}
+                            </button>
+                        )}
+                    </div>
+                )}
                 {!loading && !error && filteredTree.length > 0 && (
-                    <div className="tree-scroll">
+                    <div className="tree-scroll tree-scroll-embedded">
                         {filteredTree.map((node) => (
                             <TreeNodeRow
                                 key={node.id}

@@ -18,6 +18,14 @@ async function fetchJson<T>(path: string): Promise<T> {
     return await response.json() as Promise<T>;
 }
 
+async function fetchVoid(path: string): Promise<void> {
+    const response = await fetch(`${API_BASE_URL}${path}`);
+    if (!response.ok) {
+        const text = await response.text();
+        throw new Error(text || `HTTP ${response.status}`);
+    }
+}
+
 export function getIndicatorGroups(): Promise<IndicatorGroupReadDto[]> {
     return fetchJson<IndicatorGroupReadDto[]>('/internal/temp/read/groups');
 }
@@ -35,6 +43,14 @@ export function getIndicatorTree(
         year: String(year)
     });
     return fetchJson<IndicatorTreeNodeReadDto[]>(`/internal/temp/read/indicators/tree?${params.toString()}`);
+}
+
+export function requestIndicatorTreeSync(groupCode: IndicatorGroupCode, year: number): Promise<void> {
+    const params = new URLSearchParams({
+        group: groupCode,
+        year: String(year)
+    });
+    return fetchVoid(`/internal/temp/reference/indicators?${params.toString()}`);
 }
 
 export function getObservations(query: ObservationQuery): Promise<ObservationReadResultDto> {

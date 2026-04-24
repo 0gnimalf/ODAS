@@ -1,5 +1,11 @@
 import {useEffect, useMemo, useState} from 'react';
-import {getIndicatorGroups, getIndicatorTree, getObservations, getRegions} from '../../shared/api/odasReadApi';
+import {
+    getIndicatorGroups,
+    getIndicatorTree,
+    getObservations,
+    getRegions,
+    requestIndicatorTreeSync
+} from '../../shared/api/odasReadApi';
 import type {
     IndicatorGroupCode,
     IndicatorGroupReadDto,
@@ -9,7 +15,6 @@ import type {
 } from '../../shared/types/read';
 import {RegionCompareBarChart} from '../../widgets/charts/RegionCompareBarChart';
 import {FilterPanel} from '../../widgets/filter-panel/FilterPanel';
-import {IndicatorTreePanel} from '../../widgets/indicator-tree/IndicatorTreePanel';
 import {ObservationTable} from '../../widgets/observation-table/ObservationTable';
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -46,6 +51,8 @@ export function ReadExplorerPage() {
 
     const [treeLoading, setTreeLoading] = useState(false);
     const [treeError, setTreeError] = useState<string | null>(null);
+    const [treeSyncLoading, setTreeSyncLoading] = useState(false);
+    const [treeReloadNonce, setTreeReloadNonce] = useState(0);
 
     const [observationLoading, setObservationLoading] = useState(false);
     const [observationError, setObservationError] = useState<string | null>(null);
@@ -121,7 +128,7 @@ export function ReadExplorerPage() {
         return () => {
             cancelled = true;
         };
-    }, [groupCode, year]);
+    }, [groupCode, year, treeReloadNonce]);
 
     const currentRequestKey = useMemo(
         () =>
@@ -137,7 +144,7 @@ export function ReadExplorerPage() {
     );
 
     const isDirty = Boolean(observationResult) && currentRequestKey !== lastAppliedRequestKey;
-    const canLoadObservations = Boolean(groupCode) && regionIds.length > 0 && indicatorYearEntryIds.length > 0 && !treeLoading;
+    const canLoadObservations = Boolean(groupCode) && regionIds.length > 0 && indicatorYearEntryIds.length > 0 && !treeLoading && !treeSyncLoading;
 
     const handleLoadObservations = async () => {
         if (!groupCode || regionIds.length === 0 || indicatorYearEntryIds.length === 0) {
@@ -166,6 +173,23 @@ export function ReadExplorerPage() {
         }
     };
 
+    const handleSyncTree = async () => {
+        if (!groupCode || year <= 0) {
+            return;
+        }
+
+        try {
+            setTreeSyncLoading(true);
+            setTreeError(null);
+            await requestIndicatorTreeSync(groupCode, year);
+            setTreeReloadNonce((current) => current + 1);
+        } catch (error) {
+            setTreeError(extractErrorMessage(error, 'Не удалось запустить синхронизацию дерева показателей.'));
+        } finally {
+            setTreeSyncLoading(false);
+        }
+    };
+
     return (
         <main className="page-shell">
             <header className="page-header">
@@ -176,26 +200,36 @@ export function ReadExplorerPage() {
                 <div className="status-badges">
                     <span className="status-badge">React</span>
                     <span className="status-badge">Apache ECharts</span>
-                    <span className="status-badge">v1</span>
+                    <span className="status-badge">v2</span>
                 </div>
             </header>
 
-            {bootLoading && <section className="panel">
-                <div className="empty-state">Загрузка стартовых справочников…</div>
-            </section>}
-            {bootError && !bootLoading && <section className="panel">
-                <div className="error-state">{bootError}</div>
-            </section>}
+            {bootLoading && (
+                <section className="panel">
+                    <div className="empty-state">Загрузка стартовых справочников…</div>
+                </section>
+            )}
+            {bootError && !bootLoading && (
+                <section className="panel">
+                    <div className="error-state">{bootError}</div>
+                </section>
+            )}
 
             {!bootLoading && !bootError && (
                 <>
                     <FilterPanel
                         groups={groups}
                         regions={regions}
+                        tree={tree}
+                        treeLoading={treeLoading}
+                        treeError={treeError}
                         selectedGroupCode={groupCode}
                         selectedYear={year}
                         selectedMonth={month}
                         selectedRegionIds={regionIds}
+                        selectedIndicatorIds={indicatorYearEntryIds}
+                        includeChildren={includeChildren}
+                        treeSyncLoading={treeSyncLoading}
                         onGroupCodeChange={(value) => {
                             setGroupCode(value);
                             setObservationResult(null);
@@ -208,31 +242,22 @@ export function ReadExplorerPage() {
                         }}
                         onMonthChange={setMonth}
                         onRegionIdsChange={setRegionIds}
+                        onSelectedIndicatorIdsChange={setIndicatorYearEntryIds}
+                        onIncludeChildrenChange={setIncludeChildren}
+                        onSyncTree={() => void handleSyncTree()}
                         onLoadObservations={() => void handleLoadObservations()}
                         canLoadObservations={canLoadObservations}
                         loadingObservations={observationLoading}
                     />
 
-                    <div className="content-grid">
-                        <IndicatorTreePanel
-                            tree={tree}
-                            loading={treeLoading}
-                            error={treeError}
-                            selectedIds={indicatorYearEntryIds}
-                            includeChildren={includeChildren}
-                            onSelectedIdsChange={setIndicatorYearEntryIds}
-                            onIncludeChildrenChange={setIncludeChildren}
+                    <div className="results-stack">
+                        <RegionCompareBarChart result={observationResult}/>
+                        <ObservationTable
+                            result={observationResult}
+                            loading={observationLoading}
+                            error={observationError}
+                            isDirty={isDirty}
                         />
-
-                        <div className="result-column">
-                            <RegionCompareBarChart result={observationResult}/>
-                            <ObservationTable
-                                result={observationResult}
-                                loading={observationLoading}
-                                error={observationError}
-                                isDirty={isDirty}
-                            />
-                        </div>
                     </div>
                 </>
             )}
