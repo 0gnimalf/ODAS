@@ -18,7 +18,20 @@ interface FilterPanelProps {
     loadingObservations: boolean;
 }
 
-const MONTH_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+const MONTH_OPTIONS = {
+    1: "Январь",
+    2: "Февраль",
+    3: "Март",
+    4: "Апрель",
+    5: "Май",
+    6: "Июнь",
+    7: "Июль",
+    8: "Август",
+    9: "Сентябрь",
+    10: "Октябрь",
+    11: "Ноябрь",
+    12: "Декабрь"
+};
 
 export function FilterPanel({
                                 groups,
@@ -98,9 +111,9 @@ export function FilterPanel({
                 <label className="field">
                     <span>Месяц</span>
                     <select value={selectedMonth} onChange={(event) => onMonthChange(Number(event.target.value))}>
-                        {MONTH_OPTIONS.map((month) => (
+                        {Object.entries(MONTH_OPTIONS).map(([month, monthName]) => (
                             <option key={month} value={month}>
-                                {month}
+                                {monthName}
                             </option>
                         ))}
                     </select>
