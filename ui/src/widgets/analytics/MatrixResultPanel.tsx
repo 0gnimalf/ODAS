@@ -13,7 +13,7 @@ const VIEWS: Array<{ key: ViewKey; title: string; description: string }> = [
     {key: 'summary', title: 'Служебная сводка', description: 'Размер матрицы и заполненность.'}
 ];
 
-const HEATMAP_COLORS = ['#f7fbff', '#deebf7', '#9ecae1', '#3182bd', '#08519c'];
+const HEATMAP_COLORS = ['#f7fbff', '#cfe1f2', '#8fbce6', '#3f82d6', '#0b4ea2'];
 
 export function MatrixResultPanel({result, loading, error, isDirty}: {
     result: RegionIndicatorMatrixResultDto | null;
@@ -270,10 +270,10 @@ function HeatmapChart({matrix, showCellLabels, normalizedByColumn}: {
                     formatter: (params: {
                         data: { value: [number, number, number | null, number | null, number] }
                     }) => {
-                        const [x, y, , rawValue, missingFlag] = params.data.value;
+                        const [x, y, intensity, rawValue, missingFlag] = params.data.value;
                         const column = matrix.columns[x];
                         const row = matrix.rows[y];
-                        return `${row?.regionName ?? ''}<br/>${column?.indicatorName ?? ''}<br/>${missingFlag === 1 ? 'Missing' : formatObservationValue(rawValue)}`;
+                        return `${row?.regionName ?? ''}<br/>${column?.indicatorName ?? ''}<br/>${missingFlag === 1 ? 'Missing' : formatObservationValue(rawValue)}<br/>Интенсивность: ${intensity == null ? '—' : `${Math.round(intensity)}%`}`;
                     }
                 },
                 grid: {left: 220, right: 36, top: 24, bottom: 140},
@@ -295,11 +295,14 @@ function HeatmapChart({matrix, showCellLabels, normalizedByColumn}: {
                 visualMap: {
                     min: 0,
                     max: 100,
+                    dimension: 2,
                     calculable: true,
                     orient: 'horizontal',
                     left: 'center',
                     bottom: 20,
+                    text: ['100%', '0%'],
                     inRange: {color: HEATMAP_COLORS},
+                    outOfRange: {color: ['#eef2f8']},
                     formatter: (value: number) => `${Math.round(value)}%`
                 },
                 series: [{
@@ -311,6 +314,7 @@ function HeatmapChart({matrix, showCellLabels, normalizedByColumn}: {
                             data: { value: [number, number, number | null, number | null, number] }
                         }) => formatObservationValue(item.value[3])
                     } : undefined,
+                    itemStyle: {borderColor: 'rgba(23, 32, 51, 0.08)', borderWidth: 1},
                     emphasis: {itemStyle: {shadowBlur: 10, shadowColor: 'rgba(23, 32, 51, 0.18)'}}
                 }]
             }}

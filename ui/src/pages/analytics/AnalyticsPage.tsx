@@ -262,32 +262,33 @@ export function AnalyticsPage() {
             setSeriesLoading(true);
             setSeriesError(null);
 
-            const [monthly, growth] = await Promise.all([
-                buildMonthlySeries({
-                    groupCode,
-                    regionId: seriesRegionId,
-                    indicatorYearEntryId: seriesIndicatorIds[0],
-                    valueKind,
-                    year,
-                    month,
-                    includeQuarterAggregates: seriesIncludeQuarterAggregates,
-                    autoCollectMissing: seriesAutoCollectMissing
-                }),
-                calculatePeriodGrowthMetrics({
-                    groupCode,
-                    regionId: seriesRegionId,
-                    indicatorYearEntryId: seriesIndicatorIds[0],
-                    valueKind,
-                    year,
-                    month,
-                    autoCollectMissing: seriesAutoCollectMissing
-                })
-            ]);
+            const monthly = await buildMonthlySeries({
+                groupCode,
+                regionId: seriesRegionId,
+                indicatorYearEntryId: seriesIndicatorIds[0],
+                valueKind,
+                year,
+                month,
+                includeQuarterAggregates: seriesIncludeQuarterAggregates,
+                autoCollectMissing: seriesAutoCollectMissing
+            });
+
+            const growth = await calculatePeriodGrowthMetrics({
+                groupCode,
+                regionId: seriesRegionId,
+                indicatorYearEntryId: seriesIndicatorIds[0],
+                valueKind,
+                year,
+                month,
+                autoCollectMissing: seriesAutoCollectMissing
+            });
 
             setSeriesResult(monthly);
             setGrowthResult(growth);
             setSeriesLastKey(seriesKey);
         } catch (error) {
+            setSeriesResult(null);
+            setGrowthResult(null);
             setSeriesError(extractErrorMessage(error, 'Не удалось загрузить ряд и темпы.'));
         } finally {
             setSeriesLoading(false);

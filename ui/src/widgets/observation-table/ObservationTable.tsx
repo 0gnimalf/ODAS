@@ -1,12 +1,12 @@
+import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
-import {formatObservationValue} from '../../shared/lib/format';
+import {formatObservationValue, truncateLabel} from '../../shared/lib/format';
 import type {ObservationReadDto, ObservationReadResultDto} from '../../shared/types/read';
 
 type TableColumnKey =
     | 'regionName'
     | 'indicatorName'
     | 'valueKindLabel'
-    // | 'valueType'
     | 'unitCodeLabel'
     | 'value'
     | 'datasetCollectionId';
@@ -23,14 +23,21 @@ interface ObservationTableProps {
 interface ColumnDefinition {
     key: TableColumnKey;
     label: string;
-    render: (observation: ObservationReadDto) => string | number;
+    render: (observation: ObservationReadDto) => ReactNode;
 }
 
 const COLUMN_DEFINITIONS: ColumnDefinition[] = [
     {key: 'regionName', label: 'Регион', render: (observation) => observation.regionName},
-    {key: 'indicatorName', label: 'Показатель', render: (observation) => observation.indicatorName},
+    {
+        key: 'indicatorName',
+        label: 'Показатель',
+        render: (observation) => (
+            <span className="table-cell-clamp observation-indicator-cell" title={observation.indicatorName}>
+                {truncateLabel(observation.indicatorName, 96)}
+            </span>
+        )
+    },
     {key: 'valueKindLabel', label: 'Вид значения', render: (observation) => observation.valueKindLabel},
-    // {key: 'valueType', label: 'Тип значения', render: (observation) => observation.valueType},
     {key: 'unitCodeLabel', label: 'Ед. изм.', render: (observation) => observation.unitCodeLabel},
     {key: 'value', label: 'Значение', render: (observation) => formatObservationValue(observation.value)},
     {key: 'datasetCollectionId', label: 'Dataset', render: (observation) => observation.datasetCollectionId}
@@ -77,7 +84,6 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                 observation.regionName,
                 observation.indicatorName,
                 observation.valueKindLabel,
-                // observation.valueType,
                 observation.unitCodeLabel,
                 String(observation.datasetCollectionId),
                 formatObservationValue(observation.value)
@@ -276,8 +282,6 @@ function getComparableStringValue(observation: ObservationReadDto, sortBy: Exclu
             return observation.indicatorName;
         case 'valueKindLabel':
             return observation.valueKindLabel;
-        // case 'valueType':
-        //     return observation.valueType;
         case 'unitCodeLabel':
             return observation.unitCode;
     }
