@@ -20,6 +20,11 @@
         </dependency>
         <dependency>
             <groupId>Ogni</groupId>
+            <artifactId>analysis</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>Ogni</groupId>
             <artifactId>infrastructure-db</artifactId>
             <version>${project.version}</version>
         </dependency>

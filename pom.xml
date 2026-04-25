@@ -14,6 +14,7 @@
     <modules>
         <module>domain</module>
         <module>application</module>
+        <module>analysis</module>
         <module>infrastructure-db</module>
         <module>infrastructure-collector-iminfin</module>
         <module>boot</module>

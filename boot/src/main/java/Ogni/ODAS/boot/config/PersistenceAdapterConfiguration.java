@@ -50,4 +50,9 @@ public class PersistenceAdapterConfiguration {
     public StoredDataQueryPort storedDataQueryPort(NamedParameterJdbcTemplate jdbcTemplate) {
         return new StoredDataQueryAdapter(jdbcTemplate);
     }
+
+    @Bean
+    public AnalysisQueryPort analysisQueryPort(NamedParameterJdbcTemplate jdbcTemplate) {
+        return new AnalysisQueryAdapter(jdbcTemplate);
+    }
 }
