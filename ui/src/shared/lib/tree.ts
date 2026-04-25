@@ -66,3 +66,38 @@ export function collectAllNodeIds(nodes: IndicatorTreeNodeReadDto[]): number[] {
     visit(nodes);
     return result;
 }
+
+export function expandSelectedIdsWithDescendants(
+    nodes: IndicatorTreeNodeReadDto[],
+    selectedIds: number[]
+): number[] {
+    if (selectedIds.length === 0) {
+        return [];
+    }
+
+    const selectedIdSet = new Set(selectedIds);
+    const expandedIds = new Set<number>();
+
+    const collectDescendants = (items: IndicatorTreeNodeReadDto[]) => {
+        items.forEach((item) => {
+            expandedIds.add(item.id);
+            if (item.children.length > 0) {
+                collectDescendants(item.children);
+            }
+        });
+    };
+
+    const visit = (items: IndicatorTreeNodeReadDto[]) => {
+        items.forEach((item) => {
+            if (selectedIdSet.has(item.id)) {
+                expandedIds.add(item.id);
+                collectDescendants(item.children);
+            } else if (item.children.length > 0) {
+                visit(item.children);
+            }
+        });
+    };
+
+    visit(nodes);
+    return Array.from(expandedIds);
+}

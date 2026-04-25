@@ -1,4 +1,4 @@
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import {collectAllNodeIds, collectNodeNamesByIds, countTreeNodes, filterTreeByQuery} from '../../shared/lib/tree';
 import type {IndicatorTreeNodeReadDto} from '../../shared/types/read';
 
@@ -8,13 +8,14 @@ interface IndicatorTreePanelProps {
     error: string | null;
     selectedIds: number[];
     includeChildren: boolean;
-    onSelectedIdsChange: (value: number[]) => void;
-    onIncludeChildrenChange: (value: boolean) => void;
-    selectionMode?: 'multiple' | 'single';
+    onSelectedIdsChange: (next: number[]) => void;
+    onIncludeChildrenChange: (next: boolean) => void;
+    selectionMode?: 'single' | 'multiple';
     embedded?: boolean;
+    showIncludeChildrenOption?: boolean;
+    onSyncTree?: () => void;
     canSyncTree?: boolean;
     syncingTree?: boolean;
-    onSyncTree?: () => void;
 }
 
 export function IndicatorTreePanel({
@@ -27,73 +28,110 @@ export function IndicatorTreePanel({
                                        onIncludeChildrenChange,
                                        selectionMode = 'multiple',
                                        embedded = false,
+                                       showIncludeChildrenOption = true,
+                                       onSyncTree,
                                        canSyncTree = false,
-                                       syncingTree = false,
-                                       onSyncTree
+                                       syncingTree = false
                                    }: IndicatorTreePanelProps) {
     const [search, setSearch] = useState('');
     const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
-    const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
+
+    const isSearchMode = search.trim().length > 0;
     const filteredTree = useMemo(() => filterTreeByQuery(tree, search), [tree, search]);
+    const selectedIdSet = useMemo(() => new Set(selectedIds), [selectedIds]);
     const selectedNames = useMemo(() => collectNodeNamesByIds(tree, selectedIdSet), [tree, selectedIdSet]);
-    const visibleNodeIds = useMemo(() => collectAllNodeIds(filteredTree), [filteredTree]);
-    const totalNodes = useMemo(() => countTreeNodes(tree), [tree]);
+    const totalNodeCount = useMemo(() => countTreeNodes(tree), [tree]);
+
+    useEffect(() => {
+        if (isSearchMode) {
+            setExpandedIds(new Set(collectAllNodeIds(filteredTree)));
+        }
+    }, [filteredTree, isSearchMode]);
+
+    const toggleExpanded = (id: number) => {
+        setExpandedIds((current) => {
+            const next = new Set(current);
+            if (next.has(id)) {
+                next.delete(id);
+            } else {
+                next.add(id);
+            }
+            return next;
+        });
+    };
 
     const toggleSelected = (id: number) => {
         if (selectionMode === 'single') {
-            onSelectedIdsChange(selectedIds.includes(id) ? [] : [id]);
+            onSelectedIdsChange(selectedIdSet.has(id) ? [] : [id]);
             return;
         }
+
         const next = new Set(selectedIds);
-        next.has(id) ? next.delete(id) : next.add(id);
+        if (next.has(id)) {
+            next.delete(id);
+        } else {
+            next.add(id);
+        }
         onSelectedIdsChange(Array.from(next));
     };
 
-    const toggleExpanded = (id: number) => {
-        const next = new Set(expandedIds);
-        next.has(id) ? next.delete(id) : next.add(id);
-        setExpandedIds(next);
-    };
-
-    const isSearchMode = search.trim().length > 0;
-    const rootClassName = embedded ? 'tree-panel-embedded' : 'panel tree-panel';
+    const containerClassName = embedded ? 'tree-panel-embedded' : 'panel';
 
     return (
-        <section className={rootClassName}>
-            <div className="panel-header compact-gap">
+        <section className={containerClassName}>
+            <div className="selector-header-row tree-selector-head">
                 <div>
-                    <h2>Дерево показателей</h2>
-                    <p>{totalNodes > 0 ? `Загружено узлов: ${totalNodes}` : 'Выберите группу и год, чтобы загрузить дерево.'}</p>
+                    <h3>Дерево показателей</h3>
+                    <p>
+                        {tree.length > 0
+                            ? `Загружено ${totalNodeCount} узл. Выбрано: ${selectedIds.length}.`
+                            : 'Дерево ещё не загружено.'}
+                    </p>
                 </div>
+                <span className="chip">
+          {selectionMode === 'single' ? 'Один показатель' : 'Несколько показателей'}
+        </span>
             </div>
+
             <div className="selector-actions tree-actions">
-                <input type="search" value={search} onChange={(event) => setSearch(event.target.value)}
-                       placeholder="Поиск по дереву" disabled={tree.length === 0 || loading}/>
-                <div className="inline-actions wrap">
-                    {selectionMode === 'multiple' && (
-                        <button type="button"
-                                onClick={() => onSelectedIdsChange(Array.from(new Set([...selectedIds, ...visibleNodeIds])))}
-                                disabled={visibleNodeIds.length === 0}>Выбрать видимые</button>
-                    )}
-                    <button type="button" onClick={() => onSelectedIdsChange([])}
-                            disabled={selectedIds.length === 0}>Очистить
-                    </button>
-                </div>
+                <label className="field compact-search-field">
+                    <span>Поиск по названию</span>
+                    <input
+                        type="search"
+                        value={search}
+                        onChange={(event) => setSearch(event.target.value)}
+                        placeholder="Например, Налоговые доходы"
+                    />
+                </label>
             </div>
-            <label className="check-row include-children-row">
-                <input type="checkbox" checked={includeChildren}
-                       onChange={(event) => onIncludeChildrenChange(event.target.checked)}/>
-                <span>{selectionMode === 'single' ? 'Учитывать поддерево выбранного узла' : 'Запросить также дочерние показатели'}</span>
-            </label>
-            <div className="selected-summary">
-                <strong>Выбрано узлов: {selectedIds.length}</strong>
-                {selectedNames.length > 0 && (
+
+            <div className="tree-selection-summary">
+                {selectedNames.length > 0 ? (
                     <div className="selected-chip-list">
-                        {selectedNames.slice(0, 8).map((name) => <span key={name} className="chip">{name}</span>)}
-                        {selectedNames.length > 8 && <span className="chip">+ ещё {selectedNames.length - 8}</span>}
+                        {selectedNames.map((name) => (
+                            <span key={name} className="chip" title={name}>
+                {name}
+              </span>
+                        ))}
                     </div>
+                ) : (
+                    <span className="placeholder-text">Показатели ещё не выбраны.</span>
                 )}
             </div>
+
+            {showIncludeChildrenOption && (
+                <div className="checkbox-grid tree-option-grid">
+                    <label className="check-row checkbox-card compact-checkbox-card">
+                        <input
+                            type="checkbox"
+                            checked={includeChildren}
+                            onChange={(event) => onIncludeChildrenChange(event.target.checked)}
+                        />
+                        <span>Учитывать поддерево выбранного узла</span>
+                    </label>
+                </div>
+            )}
+
             <div className="tree-content tree-content-embedded">
                 {loading && <div className="empty-state">Загрузка дерева…</div>}
                 {!loading && error && <div className="error-state">{error}</div>}
@@ -113,9 +151,16 @@ export function IndicatorTreePanel({
                 {!loading && !error && filteredTree.length > 0 && (
                     <div className="tree-scroll tree-scroll-embedded">
                         {filteredTree.map((node) => (
-                            <TreeNodeRow key={node.id} node={node} level={0} selectedIdSet={selectedIdSet}
-                                         expandedIds={expandedIds} isSearchMode={isSearchMode}
-                                         onToggleExpanded={toggleExpanded} onToggleSelected={toggleSelected}/>
+                            <TreeNodeRow
+                                key={node.id}
+                                node={node}
+                                level={0}
+                                selectedIdSet={selectedIdSet}
+                                expandedIds={expandedIds}
+                                isSearchMode={isSearchMode}
+                                onToggleExpanded={toggleExpanded}
+                                onToggleSelected={toggleSelected}
+                            />
                         ))}
                     </div>
                 )}
@@ -155,7 +200,7 @@ function TreeNodeRow({
                 <label className="check-row tree-check-row">
                     <input type="checkbox" checked={selectedIdSet.has(node.id)}
                            onChange={() => onToggleSelected(node.id)}/>
-                    <span>{node.name}</span>
+                    <span title={node.name}>{node.name}</span>
                 </label>
             </div>
             {hasChildren && isExpanded && node.children.map((child) => (

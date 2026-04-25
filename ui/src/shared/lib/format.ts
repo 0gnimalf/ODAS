@@ -21,3 +21,11 @@ export function formatPercentValue(value: number | null | undefined): string {
 export function formatRegionLabel(region: RegionReadDto): string {
     return `${region.name} · ${region.federalDistrictShortName}`;
 }
+
+export function truncateLabel(value: string, maxLength = 44): string {
+    const normalized = value.trim();
+    if (normalized.length <= maxLength) {
+        return normalized;
+    }
+    return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
+}

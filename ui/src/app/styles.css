@@ -811,3 +811,27 @@ th {
         text-align: left;
     }
 }
+
+.analytics-inline-hint {
+    margin-top: 10px;
+    color: #5f6d84;
+    font-size: 14px;
+}
+
+.table-header-clamp {
+    display: inline-block;
+    max-width: 220px;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.35;
+    vertical-align: top;
+}
+
+.table-cell-clamp {
+    display: inline-block;
+    max-width: 520px;
+    white-space: normal;
+    word-break: break-word;
+    line-height: 1.4;
+    vertical-align: top;
+}
