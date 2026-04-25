@@ -199,7 +199,7 @@ export function ReadExplorerPage() {
                 <div className="status-badges">
                     <span className="status-badge">React</span>
                     <span className="status-badge">Apache ECharts</span>
-                    <span className="status-badge">v3</span>
+                    <span className="status-badge">v4</span>
                 </div>
             </header>
 
