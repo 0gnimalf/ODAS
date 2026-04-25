@@ -15,7 +15,8 @@ public record BuildRegionIndicatorMatrixCommand(
         Integer month,
         List<Long> regionIds,
         List<Long> indicatorYearEntryIds,
-        ObservationValueKind valueKind
+        ObservationValueKind valueKind,
+        boolean forceRefresh
 ) {
     public BuildRegionIndicatorMatrixCommand {
         Objects.requireNonNull(groupCode, "groupCode must not be null");

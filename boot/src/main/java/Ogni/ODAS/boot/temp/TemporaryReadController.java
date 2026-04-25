@@ -52,7 +52,8 @@ public class TemporaryReadController {
             @RequestParam(name = "regionId") List<Long> regionIds,
             @RequestParam(name = "indicatorYearEntryId") List<Long> indicatorYearEntryIds,
             @RequestParam(name = "valueKind", required = false) Set<ObservationValueKind> valueKinds,
-            @RequestParam(name = "includeChildren", defaultValue = "false") boolean includeChildren
+            @RequestParam(name = "includeChildren", defaultValue = "false") boolean includeChildren,
+            @RequestParam(name = "forceRefresh", defaultValue = "false") boolean forceRefresh
     ) {
         return storedDataReadUseCase.getObservations(new ReadObservationsCommand(
                 groupCode,
@@ -61,7 +62,8 @@ public class TemporaryReadController {
                 regionIds,
                 indicatorYearEntryIds,
                 valueKinds,
-                includeChildren
+                includeChildren,
+                forceRefresh
         ));
     }
 }

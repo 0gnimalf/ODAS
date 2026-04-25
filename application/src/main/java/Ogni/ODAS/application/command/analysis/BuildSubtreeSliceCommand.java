@@ -13,7 +13,8 @@ public record BuildSubtreeSliceCommand(
         Integer month,
         Long regionId,
         Long rootIndicatorYearEntryId,
-        ObservationValueKind valueKind
+        ObservationValueKind valueKind,
+        boolean forceRefresh
 ) {
     public BuildSubtreeSliceCommand {
         Objects.requireNonNull(groupCode, "groupCode must not be null");

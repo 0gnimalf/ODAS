@@ -19,9 +19,10 @@ public class ApplicationUseCaseConfiguration {
     @Bean
     public StoredDataReadUseCase storedDataReadUseCase(
             PeriodPersistencePort periodPersistence,
-            StoredDataQueryPort storedDataQuery
+            StoredDataQueryPort storedDataQuery,
+            ObservationCollectionUseCase observationCollectionUseCase
     ) {
-        return new StoredDataReadService(periodPersistence, storedDataQuery);
+        return new StoredDataReadService(periodPersistence, storedDataQuery, observationCollectionUseCase);
     }
 
     @Bean

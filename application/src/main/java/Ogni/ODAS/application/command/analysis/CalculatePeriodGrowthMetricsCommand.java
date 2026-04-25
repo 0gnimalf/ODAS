@@ -14,7 +14,8 @@ public record CalculatePeriodGrowthMetricsCommand(
         ObservationValueKind valueKind,
         Integer year,
         Integer month,
-        boolean autoCollectMissing
+        boolean autoCollectMissing,
+        boolean forceRefresh
 ) {
     public CalculatePeriodGrowthMetricsCommand {
         Objects.requireNonNull(groupCode, "groupCode must not be null");

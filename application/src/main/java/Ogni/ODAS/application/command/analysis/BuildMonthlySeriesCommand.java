@@ -15,7 +15,8 @@ public record BuildMonthlySeriesCommand(
         Integer year,
         Integer month,
         boolean includeQuarterAggregates,
-        boolean autoCollectMissing
+        boolean autoCollectMissing,
+        boolean forceRefresh
 ) {
     public BuildMonthlySeriesCommand {
         Objects.requireNonNull(groupCode, "groupCode must not be null");

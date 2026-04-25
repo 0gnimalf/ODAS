@@ -25,6 +25,7 @@ function buildRequestKey(payload: {
     regionIds: number[];
     indicatorYearEntryIds: number[];
     includeChildren: boolean;
+    forceRefresh: boolean;
 }): string {
     return JSON.stringify({
         ...payload,
@@ -44,6 +45,7 @@ export function ReadExplorerPage() {
     const [regionIds, setRegionIds] = useState<number[]>([]);
     const [indicatorYearEntryIds, setIndicatorYearEntryIds] = useState<number[]>([]);
     const [includeChildren, setIncludeChildren] = useState(false);
+    const [forceRefresh, setForceRefresh] = useState(false);
 
     const [bootLoading, setBootLoading] = useState(true);
     const [bootError, setBootError] = useState<string | null>(null);
@@ -137,9 +139,10 @@ export function ReadExplorerPage() {
                 month,
                 regionIds,
                 indicatorYearEntryIds,
-                includeChildren
+                includeChildren,
+                forceRefresh
             }),
-        [groupCode, year, month, regionIds, indicatorYearEntryIds, includeChildren]
+        [groupCode, year, month, regionIds, indicatorYearEntryIds, includeChildren, forceRefresh]
     );
 
     const isDirty = Boolean(observationResult) && currentRequestKey !== lastAppliedRequestKey;
@@ -160,7 +163,8 @@ export function ReadExplorerPage() {
                 month,
                 regionIds,
                 indicatorYearEntryIds,
-                includeChildren
+                includeChildren,
+                forceRefresh
             });
 
             setObservationResult(response);
@@ -247,6 +251,8 @@ export function ReadExplorerPage() {
                         onLoadObservations={() => void handleLoadObservations()}
                         canLoadObservations={canLoadObservations}
                         loadingObservations={observationLoading}
+                        forceRefresh={forceRefresh}
+                        onForceRefreshChange={setForceRefresh}
                     />
 
                     <ResultDisplayPanel

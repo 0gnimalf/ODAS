@@ -13,6 +13,7 @@ public record ReadObservationsCommand(
         List<Long> regionIds,
         List<Long> indicatorYearEntryIds,
         Set<ObservationValueKind> valueKinds,
-        boolean includeChildren
+        boolean includeChildren,
+        boolean forceRefresh
 ) {
 }

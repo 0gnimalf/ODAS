@@ -71,7 +71,8 @@ public class AnalysisService implements AnalysisUseCase {
                 command.month(),
                 command.regionIds(),
                 List.of(command.indicatorYearEntryId()),
-                Set.of(command.valueKind())
+                Set.of(command.valueKind()),
+                command.forceRefresh()
         );
         return regionComparisonPort.calculate(
                 command.groupCode(),
@@ -100,6 +101,7 @@ public class AnalysisService implements AnalysisUseCase {
                 command.valueKind(),
                 plan,
                 command.autoCollectMissing(),
+                command.forceRefresh(),
                 NonCumulativeValueMode.SERIES_RANGE,
                 command.year(),
                 command.month()
@@ -145,6 +147,7 @@ public class AnalysisService implements AnalysisUseCase {
                 command.valueKind(),
                 plan,
                 command.autoCollectMissing(),
+                command.forceRefresh(),
                 NonCumulativeValueMode.TARGET_MONTH_AND_QUARTER_METRICS,
                 command.year(),
                 command.month()
@@ -196,7 +199,8 @@ public class AnalysisService implements AnalysisUseCase {
                 command.month(),
                 List.of(command.regionId()),
                 entryIds,
-                Set.of(command.valueKind())
+                Set.of(command.valueKind()),
+                command.forceRefresh()
         );
 
         return subtreeSlicePort.calculate(
@@ -232,7 +236,8 @@ public class AnalysisService implements AnalysisUseCase {
                 command.month(),
                 command.regionIds(),
                 command.indicatorYearEntryIds(),
-                Set.of(command.valueKind())
+                Set.of(command.valueKind()),
+                command.forceRefresh()
         );
 
         return regionIndicatorMatrixPort.calculate(
@@ -254,6 +259,7 @@ public class AnalysisService implements AnalysisUseCase {
             Ogni.ODAS.domain.enumtype.ObservationValueKind valueKind,
             CoveragePlan coveragePlan,
             boolean autoCollectMissing,
+            boolean forceRefresh,
             NonCumulativeValueMode mode,
             int targetYear,
             int targetMonth
@@ -265,6 +271,7 @@ public class AnalysisService implements AnalysisUseCase {
                 valueKind,
                 coveragePlan,
                 autoCollectMissing,
+                forceRefresh,
                 mode
         );
         if (autoCollectMissing || !requiresAutoCollectionRetry(initial.loadedMonths(), coveragePlan, mode, targetYear, targetMonth)) {
@@ -277,6 +284,7 @@ public class AnalysisService implements AnalysisUseCase {
                 valueKind,
                 coveragePlan,
                 true,
+                forceRefresh,
                 mode
         );
         return forced.loadedMonths().equals(initial.loadedMonths()) && !forced.autoCollectedMissing()
@@ -291,8 +299,15 @@ public class AnalysisService implements AnalysisUseCase {
             Ogni.ODAS.domain.enumtype.ObservationValueKind valueKind,
             CoveragePlan coveragePlan,
             boolean autoCollectMissing,
+            boolean forceRefresh,
             NonCumulativeValueMode mode
     ) {
+        if (forceRefresh) {
+            for (YearMonth month : coveragePlan.fetchMonths()) {
+                observationCollectionUseCase.collectMonthlyObservations(new CollectObservationsCommand(groupCode, month.getYear(), month.getMonthValue(), List.of(regionId)));
+            }
+        }
+
         IndicatorResolutionResult indicatorResolution = resolveIndicatorEntriesByYear(groupCode, regionId, indicatorContext, coveragePlan.fetchMonths(), autoCollectMissing);
         Map<Integer, Long> indicatorEntryIdsByYear = indicatorResolution.entryIdsByYear();
 
@@ -325,8 +340,14 @@ public class AnalysisService implements AnalysisUseCase {
             int month,
             Collection<Long> regionIds,
             Collection<Long> indicatorYearEntryIds,
-            Set<Ogni.ODAS.domain.enumtype.ObservationValueKind> valueKinds
+            Set<Ogni.ODAS.domain.enumtype.ObservationValueKind> valueKinds,
+            boolean forceRefresh
     ) {
+        if (forceRefresh) {
+            observationCollectionUseCase.collectMonthlyObservations(new CollectObservationsCommand(groupCode, year, month, List.copyOf(regionIds)));
+            return findMonthObservations(groupCode, year, month, regionIds, indicatorYearEntryIds, valueKinds);
+        }
+
         List<ObservationReadDto> observations = findMonthObservations(groupCode, year, month, regionIds, indicatorYearEntryIds, valueKinds);
         if (!observations.isEmpty()) {
             return observations;
@@ -368,7 +389,7 @@ public class AnalysisService implements AnalysisUseCase {
         if (mode == NonCumulativeValueMode.TARGET_MONTH_AND_QUARTER_METRICS) {
             return !loadedMonths.containsAll(coveragePlan.visibleMonths());
         }
-        return loadedMonths.isEmpty();
+        return false;
     }
 
     private RawPointLoadResult loadRawPoints(
@@ -451,8 +472,8 @@ public class AnalysisService implements AnalysisUseCase {
         List<IndicatorEntryReadDto> entries = storedDataQuery.findIndicatorEntries(groupCode, yearPeriod.get().id());
         Map<Long, String> pathByEntryId = buildPathSignatures(entries);
         return entries.stream()
-                .filter(entry -> Objects.equals(pathByEntryId.get(entry.id()), indicatorContext.pathSignature()))
                 .map(IndicatorEntryReadDto::id)
+                .filter(id -> Objects.equals(pathByEntryId.get(id), indicatorContext.pathSignature()))
                 .findFirst();
     }
 

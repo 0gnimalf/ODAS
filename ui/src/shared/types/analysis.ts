@@ -7,13 +7,14 @@ export type ObservationValueKind =
     | 'REFINED_PLAN_RATE_TO_PREVIOUS_PERIOD_EXECUTION'
     | 'ACTUAL_CONSOLIDATED_SUBJECT_BUDGET'
     | 'ACTUAL_SUBJECT_BUDGET'
-    | 'ACTUAL_RATE_TO_PREVIOUS_PERIOD'
+    // | 'ACTUAL_RATE_TO_PREVIOUS_PERIOD'
     | 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT'
     | 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_FEDERAL_DISTRICT'
     | 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_RUSSIAN_FEDERATION'
-    | 'POPULATION'
-    | 'SHARE'
-    | 'PER_CAPITA';
+// | 'POPULATION'
+// | 'SHARE'
+// | 'PER_CAPITA';
+    ;
 
 export type NonCumulativeValueMode = 'SERIES_RANGE' | 'TARGET_MONTH_AND_QUARTER_METRICS';
 
@@ -21,16 +22,19 @@ export const OBSERVATION_VALUE_KIND_OPTIONS: Array<{ code: ObservationValueKind;
     {code: 'PLAN', label: 'План'},
     {code: 'REFINED_PLAN_CONSOLIDATED_SUBJECT_BUDGET', label: 'Уточненный план; конс.бюджет субъекта РФ'},
     {code: 'REFINED_PLAN_SUBJECT_BUDGET', label: 'Уточненный план; в т.ч. бюджет субъекта'},
-    {code: 'REFINED_PLAN_RATE_TO_PREVIOUS_PERIOD_EXECUTION', label: 'Темп уточненного плана к исполнению пред. года'},
+    {
+        code: 'REFINED_PLAN_RATE_TO_PREVIOUS_PERIOD_EXECUTION',
+        label: 'Темп уточненного плана к исполнению пред. года (кроме кредитов)'
+    },
     {code: 'ACTUAL_CONSOLIDATED_SUBJECT_BUDGET', label: 'Исполнено; конс.бюджет субъекта РФ'},
     {code: 'ACTUAL_SUBJECT_BUDGET', label: 'Исполнено; в т.ч. бюджет субъекта'},
-    {code: 'ACTUAL_RATE_TO_PREVIOUS_PERIOD', label: 'Исполнено; темп к соотв. периоду пред. года'},
-    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT', label: 'Темп роста; по субъекту'},
-    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_FEDERAL_DISTRICT', label: 'Темп роста; по ФО'},
-    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_RUSSIAN_FEDERATION', label: 'Темп роста; по РФ'},
-    {code: 'POPULATION', label: 'Численность населения'},
-    {code: 'SHARE', label: 'Доля'},
-    {code: 'PER_CAPITA', label: 'На душу населения'}
+    // {code: 'ACTUAL_RATE_TO_PREVIOUS_PERIOD', label: 'Исполнено; темп к соотв. периоду пред. года'},
+    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT', label: 'Темп роста; по субъекту (кроме кредитов)'},
+    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_FEDERAL_DISTRICT', label: 'Темп роста; по ФО (кроме кредитов)'},
+    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_RUSSIAN_FEDERATION', label: 'Темп роста; по РФ (кроме кредитов)'},
+    // {code: 'POPULATION', label: 'Численность населения'},
+    // {code: 'SHARE', label: 'Доля'},
+    // {code: 'PER_CAPITA', label: 'На душу населения'}
 ];
 
 export interface BuildMonthlySeriesCommand {
@@ -42,6 +46,7 @@ export interface BuildMonthlySeriesCommand {
     month: number;
     includeQuarterAggregates: boolean;
     autoCollectMissing: boolean;
+    forceRefresh: boolean;
 }
 
 export interface CalculatePeriodGrowthMetricsCommand {
@@ -52,6 +57,7 @@ export interface CalculatePeriodGrowthMetricsCommand {
     year: number;
     month: number;
     autoCollectMissing: boolean;
+    forceRefresh: boolean;
 }
 
 export interface CompareRegionsCommand {
@@ -61,6 +67,7 @@ export interface CompareRegionsCommand {
     indicatorYearEntryId: number;
     valueKind: ObservationValueKind;
     regionIds: number[];
+    forceRefresh: boolean;
 }
 
 export interface BuildSubtreeSliceCommand {
@@ -70,6 +77,7 @@ export interface BuildSubtreeSliceCommand {
     regionId: number;
     rootIndicatorYearEntryId: number;
     valueKind: ObservationValueKind;
+    forceRefresh: boolean;
 }
 
 export interface BuildRegionIndicatorMatrixCommand {
@@ -79,6 +87,7 @@ export interface BuildRegionIndicatorMatrixCommand {
     regionIds: number[];
     indicatorYearEntryIds: number[];
     valueKind: ObservationValueKind;
+    forceRefresh: boolean;
 }
 
 export interface MonthlySeriesPointDto {

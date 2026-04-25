@@ -52,6 +52,7 @@ export function AnalyticsPage() {
     const [year, setYear] = useState(CURRENT_YEAR);
     const [month, setMonth] = useState(1);
     const [valueKind, setValueKind] = useState<ObservationValueKind>('ACTUAL_CONSOLIDATED_SUBJECT_BUDGET');
+    const [forceRefresh, setForceRefresh] = useState(false);
 
     const [bootLoading, setBootLoading] = useState(true);
     const [bootError, setBootError] = useState<string | null>(null);
@@ -219,19 +220,20 @@ export function AnalyticsPage() {
             seriesRegionId,
             seriesIndicatorIds,
             seriesIncludeQuarterAggregates,
-            seriesAutoCollectMissing
+            seriesAutoCollectMissing,
+            forceRefresh
         }),
-        [groupCode, year, month, valueKind, seriesRegionId, seriesIndicatorIds, seriesIncludeQuarterAggregates, seriesAutoCollectMissing]
+        [groupCode, year, month, valueKind, seriesRegionId, seriesIndicatorIds, seriesIncludeQuarterAggregates, seriesAutoCollectMissing, forceRefresh]
     );
 
     const compareKey = useMemo(
-        () => JSON.stringify({groupCode, year, month, valueKind, compareRegionIds, compareIndicatorIds}),
-        [groupCode, year, month, valueKind, compareRegionIds, compareIndicatorIds]
+        () => JSON.stringify({groupCode, year, month, valueKind, compareRegionIds, compareIndicatorIds, forceRefresh}),
+        [groupCode, year, month, valueKind, compareRegionIds, compareIndicatorIds, forceRefresh]
     );
 
     const subtreeKey = useMemo(
-        () => JSON.stringify({groupCode, year, month, valueKind, subtreeRegionId, subtreeIndicatorIds}),
-        [groupCode, year, month, valueKind, subtreeRegionId, subtreeIndicatorIds]
+        () => JSON.stringify({groupCode, year, month, valueKind, subtreeRegionId, subtreeIndicatorIds, forceRefresh}),
+        [groupCode, year, month, valueKind, subtreeRegionId, subtreeIndicatorIds, forceRefresh]
     );
 
     const resolvedMatrixIndicatorIds = useMemo(
@@ -248,9 +250,10 @@ export function AnalyticsPage() {
             matrixRegionIds,
             matrixIndicatorIds,
             matrixIncludeChildren,
-            resolvedMatrixIndicatorIds
+            resolvedMatrixIndicatorIds,
+            forceRefresh
         }),
-        [groupCode, year, month, valueKind, matrixRegionIds, matrixIndicatorIds, matrixIncludeChildren, resolvedMatrixIndicatorIds]
+        [groupCode, year, month, valueKind, matrixRegionIds, matrixIndicatorIds, matrixIncludeChildren, resolvedMatrixIndicatorIds, forceRefresh]
     );
 
     const loadSeries = async () => {
@@ -270,7 +273,8 @@ export function AnalyticsPage() {
                 year,
                 month,
                 includeQuarterAggregates: seriesIncludeQuarterAggregates,
-                autoCollectMissing: seriesAutoCollectMissing
+                autoCollectMissing: seriesAutoCollectMissing,
+                forceRefresh
             });
 
             const growth = await calculatePeriodGrowthMetrics({
@@ -280,7 +284,8 @@ export function AnalyticsPage() {
                 valueKind,
                 year,
                 month,
-                autoCollectMissing: seriesAutoCollectMissing
+                autoCollectMissing: seriesAutoCollectMissing,
+                forceRefresh: false
             });
 
             setSeriesResult(monthly);
@@ -309,7 +314,8 @@ export function AnalyticsPage() {
                 month,
                 indicatorYearEntryId: compareIndicatorIds[0],
                 valueKind,
-                regionIds: compareRegionIds
+                regionIds: compareRegionIds,
+                forceRefresh
             });
             setCompareResult(response);
             setCompareLastKey(compareKey);
@@ -334,7 +340,8 @@ export function AnalyticsPage() {
                 month,
                 regionId: subtreeRegionId,
                 rootIndicatorYearEntryId: subtreeIndicatorIds[0],
-                valueKind
+                valueKind,
+                forceRefresh
             });
             setSubtreeResult(response);
             setSubtreeLastKey(subtreeKey);
@@ -359,7 +366,8 @@ export function AnalyticsPage() {
                 month,
                 regionIds: matrixRegionIds,
                 indicatorYearEntryIds: resolvedMatrixIndicatorIds,
-                valueKind
+                valueKind,
+                forceRefresh
             });
             setMatrixResult(response);
             setMatrixLastKey(matrixKey);
@@ -450,24 +458,37 @@ export function AnalyticsPage() {
                                     <div className="analytics-inline-hint">{matrixSelectionSummary}</div>
                                 )}
                             </div>
-                            <button
-                                className="primary-button"
-                                type="button"
-                                disabled={!canLoad || loading || treeLoading}
-                                onClick={() => {
-                                    if (scenario === 'series') {
-                                        void loadSeries();
-                                    } else if (scenario === 'compare') {
-                                        void loadCompare();
-                                    } else if (scenario === 'subtree') {
-                                        void loadSubtree();
-                                    } else {
-                                        void loadMatrix();
-                                    }
-                                }}
-                            >
-                                {loading ? 'Загрузка…' : 'Построить аналитику'}
-                            </button>
+                            <div className="request-submit-controls">
+                                <label className="check-row checkbox-card force-refresh-toggle-card">
+                                    <input
+                                        type="checkbox"
+                                        checked={forceRefresh}
+                                        onChange={(event) => setForceRefresh(event.target.checked)}
+                                    />
+                                    <span>Принудительно обновить из внешнего источника</span>
+                                </label>
+                                {forceRefresh && (
+                                    <div className="request-warning-note">Операция может занять длительное время.</div>
+                                )}
+                                <button
+                                    className="primary-button"
+                                    type="button"
+                                    disabled={!canLoad || loading || treeLoading}
+                                    onClick={() => {
+                                        if (scenario === 'series') {
+                                            void loadSeries();
+                                        } else if (scenario === 'compare') {
+                                            void loadCompare();
+                                        } else if (scenario === 'subtree') {
+                                            void loadSubtree();
+                                        } else {
+                                            void loadMatrix();
+                                        }
+                                    }}
+                                >
+                                    {loading ? 'Загрузка…' : 'Построить аналитику'}
+                                </button>
+                            </div>
                         </div>
 
                         <div className="filter-layout-grid analytics-filter-layout-grid">

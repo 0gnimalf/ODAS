@@ -2,6 +2,7 @@ package Ogni.ODAS.application.service;
 
 import Ogni.ODAS.application.command.ReadObservationsCommand;
 import Ogni.ODAS.application.dto.read.*;
+import Ogni.ODAS.application.port.in.ObservationCollectionUseCase;
 import Ogni.ODAS.application.port.in.StoredDataReadUseCase;
 import Ogni.ODAS.application.port.out.persistence.PeriodPersistencePort;
 import Ogni.ODAS.application.port.out.persistence.StoredDataQueryPort;
@@ -17,10 +18,12 @@ public class StoredDataReadService implements StoredDataReadUseCase {
 
     private final PeriodPersistencePort periodPersistence;
     private final StoredDataQueryPort storedDataQuery;
+    private final ObservationCollectionUseCase observationCollectionUseCase;
 
-    public StoredDataReadService(PeriodPersistencePort periodPersistence, StoredDataQueryPort storedDataQuery) {
+    public StoredDataReadService(PeriodPersistencePort periodPersistence, StoredDataQueryPort storedDataQuery, ObservationCollectionUseCase observationCollectionUseCase) {
         this.periodPersistence = Objects.requireNonNull(periodPersistence);
         this.storedDataQuery = Objects.requireNonNull(storedDataQuery);
+        this.observationCollectionUseCase = Objects.requireNonNull(observationCollectionUseCase);
     }
 
     private static int compareEntries(IndicatorEntryReadDto left, IndicatorEntryReadDto right) {
@@ -68,6 +71,15 @@ public class StoredDataReadService implements StoredDataReadUseCase {
         validate(command);
         List<Long> regionIds = command.regionIds();
         List<Long> requestedIndicatorIds = command.indicatorYearEntryIds();
+
+        if (command.forceRefresh()) {
+            observationCollectionUseCase.collectMonthlyObservations(new Ogni.ODAS.application.command.CollectObservationsCommand(
+                    command.groupCode(),
+                    command.year(),
+                    command.month(),
+                    regionIds
+            ));
+        }
 
         Optional<Period> period = periodPersistence.findByIdentity(PeriodType.MONTH, command.year(), command.month(), null);
         if (period.isEmpty()) {

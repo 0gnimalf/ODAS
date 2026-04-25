@@ -59,4 +59,5 @@ export interface ObservationQuery {
     regionIds: number[];
     indicatorYearEntryIds: number[];
     includeChildren: boolean;
+    forceRefresh: boolean;
 }

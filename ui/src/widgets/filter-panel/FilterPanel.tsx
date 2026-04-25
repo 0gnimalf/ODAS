@@ -30,6 +30,8 @@ interface FilterPanelProps {
     onLoadObservations: () => void;
     canLoadObservations: boolean;
     loadingObservations: boolean;
+    forceRefresh: boolean;
+    onForceRefreshChange: (value: boolean) => void;
 }
 
 const MONTH_OPTIONS = {
@@ -69,24 +71,39 @@ export function FilterPanel({
                                 onSyncTree,
                                 onLoadObservations,
                                 canLoadObservations,
-                                loadingObservations
+                                loadingObservations,
+                                forceRefresh,
+                                onForceRefreshChange
                             }: FilterPanelProps) {
     return (
         <section className="panel panel-filters-layout">
-            <div className="panel-header filter-panel-header">
+            <div className="panel-header filter-panel-header align-start">
                 <div>
                     <h2>Параметры запроса</h2>
                     <p>Выберите группу, период и регионы, потом — узлы дерева показателей и затем загрузите
                         наблюдения.</p>
                 </div>
-                <button
-                    className="primary-button"
-                    type="button"
-                    onClick={onLoadObservations}
-                    disabled={!canLoadObservations || loadingObservations}
-                >
-                    {loadingObservations ? 'Загрузка…' : 'Показать данные'}
-                </button>
+                <div className="request-submit-controls">
+                    <label className="check-row checkbox-card force-refresh-toggle-card">
+                        <input
+                            type="checkbox"
+                            checked={forceRefresh}
+                            onChange={(event) => onForceRefreshChange(event.target.checked)}
+                        />
+                        <span>Принудительно обновить из внешнего источника</span>
+                    </label>
+                    {forceRefresh && (
+                        <div className="request-warning-note">Операция может занять длительное время.</div>
+                    )}
+                    <button
+                        className="primary-button"
+                        type="button"
+                        onClick={onLoadObservations}
+                        disabled={!canLoadObservations || loadingObservations}
+                    >
+                        {loadingObservations ? 'Загрузка…' : 'Показать данные'}
+                    </button>
+                </div>
             </div>
 
             <div className="filter-layout-grid">

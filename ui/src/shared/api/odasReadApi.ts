@@ -58,7 +58,8 @@ export function getObservations(query: ObservationQuery): Promise<ObservationRea
         group: query.groupCode,
         year: String(query.year),
         month: String(query.month),
-        includeChildren: String(query.includeChildren)
+        includeChildren: String(query.includeChildren),
+        forceRefresh: String(query.forceRefresh)
     });
 
     appendRepeatedNumberParams(params, 'regionId', query.regionIds);

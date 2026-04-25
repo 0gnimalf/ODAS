@@ -15,7 +15,8 @@ public record CompareRegionsCommand(
         Integer month,
         Long indicatorYearEntryId,
         ObservationValueKind valueKind,
-        List<Long> regionIds
+        List<Long> regionIds,
+        boolean forceRefresh
 ) {
     public CompareRegionsCommand {
         Objects.requireNonNull(groupCode, "groupCode must not be null");
