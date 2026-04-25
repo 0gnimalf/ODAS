@@ -871,3 +871,25 @@ th {
 .observation-indicator-cell {
     max-width: 360px;
 }
+
+.chart-group-selector-card {
+    margin-bottom: 16px;
+}
+
+.chart-group-stack {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.chart-group-panel {
+    border: 1px solid #e4ebf5;
+    border-radius: 16px;
+    background: #fbfcff;
+    padding: 14px;
+}
+
+.muted-text {
+    margin: 0;
+    color: #5f6d84;
+}
