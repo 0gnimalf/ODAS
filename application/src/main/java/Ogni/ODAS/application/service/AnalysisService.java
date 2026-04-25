@@ -61,28 +61,14 @@ public class AnalysisService implements AnalysisUseCase {
     @Override
     public RegionComparisonResultDto compareRegions(CompareRegionsCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        Optional<Period> monthPeriod = periodPersistence.findByIdentity(PeriodType.MONTH, command.year(), command.month(), null);
         Optional<Period> yearPeriod = periodPersistence.findByIdentity(PeriodType.YEAR, command.year(), null, null);
 
         List<RegionReadDto> regions = selectedRegions(command.regionIds());
         String indicatorName = resolveIndicatorName(command.groupCode(), yearPeriod, command.indicatorYearEntryId());
-        if (monthPeriod.isEmpty()) {
-            return regionComparisonPort.calculate(
-                    command.groupCode(),
-                    command.year(),
-                    command.month(),
-                    command.indicatorYearEntryId(),
-                    indicatorName,
-                    command.valueKind(),
-                    command.valueKind().getUnitCode(),
-                    regions,
-                    List.of()
-            );
-        }
-
-        List<ObservationReadDto> observations = storedDataQuery.findObservations(
+        List<ObservationReadDto> observations = findMonthObservationsWithAutoCollect(
                 command.groupCode(),
-                monthPeriod.get().id(),
+                command.year(),
+                command.month(),
                 command.regionIds(),
                 List.of(command.indicatorYearEntryId()),
                 Set.of(command.valueKind())
@@ -114,7 +100,9 @@ public class AnalysisService implements AnalysisUseCase {
                 command.valueKind(),
                 plan,
                 command.autoCollectMissing(),
-                NonCumulativeValueMode.SERIES_RANGE
+                NonCumulativeValueMode.SERIES_RANGE,
+                command.year(),
+                command.month()
         );
 
         List<MonthlySeriesPointDto> visiblePoints = filterVisiblePoints(resolution.points(), plan.visibleMonths());
@@ -157,7 +145,9 @@ public class AnalysisService implements AnalysisUseCase {
                 command.valueKind(),
                 plan,
                 command.autoCollectMissing(),
-                NonCumulativeValueMode.TARGET_MONTH_AND_QUARTER_METRICS
+                NonCumulativeValueMode.TARGET_MONTH_AND_QUARTER_METRICS,
+                command.year(),
+                command.month()
         );
         List<MonthlySeriesPointDto> visiblePoints = filterVisiblePoints(resolution.points(), plan.visibleMonths());
         List<QuarterAggregateDto> quarterAggregates = quarterAggregationPort.aggregate(visiblePoints);
@@ -188,7 +178,6 @@ public class AnalysisService implements AnalysisUseCase {
         Objects.requireNonNull(command, "command must not be null");
         RegionReadDto region = requireRegion(command.regionId());
         Optional<Period> yearPeriod = periodPersistence.findByIdentity(PeriodType.YEAR, command.year(), null, null);
-        Optional<Period> monthPeriod = periodPersistence.findByIdentity(PeriodType.MONTH, command.year(), command.month(), null);
 
         List<IndicatorEntryReadDto> allEntries = yearPeriod
                 .map(period -> storedDataQuery.findIndicatorEntries(command.groupCode(), period.id()))
@@ -201,15 +190,14 @@ public class AnalysisService implements AnalysisUseCase {
         }
         List<IndicatorEntryReadDto> subtreeEntries = collectSubtreeEntries(rootEntry.id(), allEntries);
         List<Long> entryIds = subtreeEntries.stream().map(IndicatorEntryReadDto::id).toList();
-        List<ObservationReadDto> observations = monthPeriod
-                .map(period -> storedDataQuery.findObservations(
-                        command.groupCode(),
-                        period.id(),
-                        List.of(command.regionId()),
-                        entryIds,
-                        Set.of(command.valueKind())
-                ))
-                .orElseGet(List::of);
+        List<ObservationReadDto> observations = findMonthObservationsWithAutoCollect(
+                command.groupCode(),
+                command.year(),
+                command.month(),
+                List.of(command.regionId()),
+                entryIds,
+                Set.of(command.valueKind())
+        );
 
         return subtreeSlicePort.calculate(
                 command.groupCode(),
@@ -227,7 +215,6 @@ public class AnalysisService implements AnalysisUseCase {
     @Override
     public RegionIndicatorMatrixResultDto buildRegionIndicatorMatrix(BuildRegionIndicatorMatrixCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        Optional<Period> monthPeriod = periodPersistence.findByIdentity(PeriodType.MONTH, command.year(), command.month(), null);
         Optional<Period> yearPeriod = periodPersistence.findByIdentity(PeriodType.YEAR, command.year(), null, null);
         List<RegionReadDto> rows = selectedRegions(command.regionIds());
         List<IndicatorEntryReadDto> columns = yearPeriod
@@ -239,15 +226,14 @@ public class AnalysisService implements AnalysisUseCase {
                         .thenComparing(IndicatorEntryReadDto::sortOrder, Comparator.nullsLast(Integer::compareTo))
                         .thenComparing(IndicatorEntryReadDto::name, Comparator.nullsLast(String::compareTo)))
                 .toList();
-        List<ObservationReadDto> observations = monthPeriod
-                .map(period -> storedDataQuery.findObservations(
-                        command.groupCode(),
-                        period.id(),
-                        command.regionIds(),
-                        command.indicatorYearEntryIds(),
-                        Set.of(command.valueKind())
-                ))
-                .orElseGet(List::of);
+        List<ObservationReadDto> observations = findMonthObservationsWithAutoCollect(
+                command.groupCode(),
+                command.year(),
+                command.month(),
+                command.regionIds(),
+                command.indicatorYearEntryIds(),
+                Set.of(command.valueKind())
+        );
 
         return regionIndicatorMatrixPort.calculate(
                 command.groupCode(),
@@ -262,6 +248,43 @@ public class AnalysisService implements AnalysisUseCase {
     }
 
     private MonthlyDataResolution resolveMonthlyData(
+            Ogni.ODAS.domain.enumtype.IndicatorGroupCode groupCode,
+            Long regionId,
+            IndicatorContext indicatorContext,
+            Ogni.ODAS.domain.enumtype.ObservationValueKind valueKind,
+            CoveragePlan coveragePlan,
+            boolean autoCollectMissing,
+            NonCumulativeValueMode mode,
+            int targetYear,
+            int targetMonth
+    ) {
+        MonthlyDataResolution initial = resolveMonthlyDataInternal(
+                groupCode,
+                regionId,
+                indicatorContext,
+                valueKind,
+                coveragePlan,
+                autoCollectMissing,
+                mode
+        );
+        if (autoCollectMissing || !requiresAutoCollectionRetry(initial.loadedMonths(), coveragePlan, mode, targetYear, targetMonth)) {
+            return initial;
+        }
+        MonthlyDataResolution forced = resolveMonthlyDataInternal(
+                groupCode,
+                regionId,
+                indicatorContext,
+                valueKind,
+                coveragePlan,
+                true,
+                mode
+        );
+        return forced.loadedMonths().equals(initial.loadedMonths()) && !forced.autoCollectedMissing()
+                ? initial
+                : forced;
+    }
+
+    private MonthlyDataResolution resolveMonthlyDataInternal(
             Ogni.ODAS.domain.enumtype.IndicatorGroupCode groupCode,
             Long regionId,
             IndicatorContext indicatorContext,
@@ -293,7 +316,59 @@ public class AnalysisService implements AnalysisUseCase {
                 valueKind.getObservationValueType() == ObservationValueType.ABSOLUTE,
                 mode
         );
-        return new MonthlyDataResolution(points, autoCollected || indicatorResolution.autoCollectedMissing());
+        return new MonthlyDataResolution(points, resolved.loadedMonths(), autoCollected || indicatorResolution.autoCollectedMissing());
+    }
+
+    private List<ObservationReadDto> findMonthObservationsWithAutoCollect(
+            Ogni.ODAS.domain.enumtype.IndicatorGroupCode groupCode,
+            int year,
+            int month,
+            Collection<Long> regionIds,
+            Collection<Long> indicatorYearEntryIds,
+            Set<Ogni.ODAS.domain.enumtype.ObservationValueKind> valueKinds
+    ) {
+        List<ObservationReadDto> observations = findMonthObservations(groupCode, year, month, regionIds, indicatorYearEntryIds, valueKinds);
+        if (!observations.isEmpty()) {
+            return observations;
+        }
+        observationCollectionUseCase.collectMonthlyObservations(new CollectObservationsCommand(groupCode, year, month, List.copyOf(regionIds)));
+        return findMonthObservations(groupCode, year, month, regionIds, indicatorYearEntryIds, valueKinds);
+    }
+
+    private List<ObservationReadDto> findMonthObservations(
+            Ogni.ODAS.domain.enumtype.IndicatorGroupCode groupCode,
+            int year,
+            int month,
+            Collection<Long> regionIds,
+            Collection<Long> indicatorYearEntryIds,
+            Set<Ogni.ODAS.domain.enumtype.ObservationValueKind> valueKinds
+    ) {
+        return periodPersistence.findByIdentity(PeriodType.MONTH, year, month, null)
+                .map(period -> storedDataQuery.findObservations(
+                        groupCode,
+                        period.id(),
+                        regionIds,
+                        indicatorYearEntryIds,
+                        valueKinds
+                ))
+                .orElseGet(List::of);
+    }
+
+    private boolean requiresAutoCollectionRetry(
+            Set<YearMonth> loadedMonths,
+            CoveragePlan coveragePlan,
+            NonCumulativeValueMode mode,
+            int targetYear,
+            int targetMonth
+    ) {
+        YearMonth target = YearMonth.of(targetYear, targetMonth);
+        if (!loadedMonths.contains(target)) {
+            return true;
+        }
+        if (mode == NonCumulativeValueMode.TARGET_MONTH_AND_QUARTER_METRICS) {
+            return !loadedMonths.containsAll(coveragePlan.visibleMonths());
+        }
+        return loadedMonths.isEmpty();
     }
 
     private RawPointLoadResult loadRawPoints(
@@ -554,6 +629,7 @@ public class AnalysisService implements AnalysisUseCase {
     private record IndicatorResolutionResult(Map<Integer, Long> entryIdsByYear, boolean autoCollectedMissing) {
     }
 
-    private record MonthlyDataResolution(List<MonthlySeriesPointDto> points, boolean autoCollectedMissing) {
+    private record MonthlyDataResolution(List<MonthlySeriesPointDto> points, Set<YearMonth> loadedMonths,
+                                         boolean autoCollectedMissing) {
     }
 }
