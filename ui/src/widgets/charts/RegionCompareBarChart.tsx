@@ -1,6 +1,6 @@
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, truncateLabel} from '../../shared/lib/format';
+import {formatObservationValue, truncateLabel, wrapChartLabel} from '../../shared/lib/format';
 import type {ObservationReadDto, ObservationReadResultDto} from '../../shared/types/read';
 
 interface RegionCompareBarChartProps {
@@ -121,14 +121,14 @@ function buildOption(group: ReturnType<typeof buildChartGroups>[number], showLab
             axisPointer: {type: 'shadow'},
             valueFormatter: (value: number | string) => typeof value === 'number' ? `${formatObservationValue(value)} ${group.unitSuffix}` : String(value)
         },
-        legend: {top: 0, type: 'scroll', data: seriesNames},
-        grid: {left: 220, right: showLabels ? 120 : 32, top: 54, bottom: 34, containLabel: false},
+        legend: {top: 0, type: 'scroll', data: seriesNames, formatter: (value: string) => wrapChartLabel(value, 28, 2)},
+        grid: {left: 260, right: showLabels ? 140 : 36, top: 70, bottom: 36, containLabel: false},
         xAxis: {type: 'value', axisLabel: {formatter: (value: number) => formatObservationValue(value)}},
         yAxis: {
             type: 'category',
             inverse: true,
             data: group.regionNames,
-            axisLabel: {width: 190, overflow: 'truncate'}
+            axisLabel: {width: 230, formatter: (value: string) => wrapChartLabel(value, 24, 3)}
         },
         dataZoom: group.regionNames.length > 18 ? [
             {
@@ -191,7 +191,7 @@ function buildChartGroups(observations: ObservationReadDto[], sortBy: SortBy, so
                 ...group,
                 regionNames: limitedRegions,
                 series: seriesNames.map((seriesName) => ({
-                    name: truncateLabel(seriesName, 64),
+                    name: truncateLabel(seriesName, 86),
                     values: limitedRegions.map((regionName) => valuesByRegionAndSeries.get(makeKey(regionName, seriesName)) ?? null)
                 }))
             };

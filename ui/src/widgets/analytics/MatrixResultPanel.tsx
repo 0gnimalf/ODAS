@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, truncateLabel} from '../../shared/lib/format';
+import {formatObservationValue, truncateLabel, wrapChartLabel} from '../../shared/lib/format';
 import type {PopulationByRegion} from '../../shared/lib/population';
 import {countKnownPopulation} from '../../shared/lib/population';
 import type {
@@ -9,6 +9,42 @@ import type {
     RegionIndicatorMatrixResultDto,
     RegionIndicatorMatrixRowDto
 } from '../../shared/types/analysis';
+import {type AnalyticsViewDefinition, AnalyticsViewSelector} from './AnalyticsViewSelector';
+
+type MatrixViewKey =
+    | 'absoluteHeatmap'
+    | 'perCapitaHeatmap'
+    | 'normalizedAbsoluteHeatmap'
+    | 'normalizedPerCapitaHeatmap'
+    | 'absoluteTable'
+    | 'perCapitaTable'
+    | 'summary';
+
+const MATRIX_VIEWS: Array<AnalyticsViewDefinition<MatrixViewKey>> = [
+    {
+        key: 'absoluteHeatmap',
+        title: 'Матрица абсолютных значений',
+        description: 'Исходная heatmap по регионам и показателям.'
+    },
+    {
+        key: 'perCapitaHeatmap',
+        title: 'Матрица на население',
+        description: 'Heatmap после пересчёта каждой ячейки на население.'
+    },
+    {
+        key: 'normalizedAbsoluteHeatmap',
+        title: 'Нормализованная абсолютная',
+        description: 'Нормализация 0–100 отдельно внутри каждого показателя.'
+    },
+    {
+        key: 'normalizedPerCapitaHeatmap',
+        title: 'Нормализованная на население',
+        description: 'Нормализация 0–100 после пересчёта на население.'
+    },
+    {key: 'absoluteTable', title: 'Таблица абсолютных', description: 'Точные исходные значения в матричном виде.'},
+    {key: 'perCapitaTable', title: 'Таблица на население', description: 'Точные значения на численность населения.'},
+    {key: 'summary', title: 'Сводка матрицы', description: 'Размерность, missing и покрытие населения.'}
+];
 
 export function MatrixResultPanel({result, loading, error, isDirty, populationByRegion, populationWarning}: {
     result: RegionIndicatorMatrixResultDto | null;
@@ -18,8 +54,20 @@ export function MatrixResultPanel({result, loading, error, isDirty, populationBy
     populationByRegion: PopulationByRegion;
     populationWarning: string | null;
 }) {
+    const [enabledViews, setEnabledViews] = useState<MatrixViewKey[]>([
+        'absoluteHeatmap',
+        'perCapitaHeatmap',
+        'normalizedAbsoluteHeatmap',
+        'normalizedPerCapitaHeatmap',
+        'absoluteTable',
+        'perCapitaTable',
+        'summary'
+    ]);
     const [showCellLabels, setShowCellLabels] = useState(false);
     const [hideMissingColumns, setHideMissingColumns] = useState(false);
+
+    const enabledViewSet = useMemo(() => new Set(enabledViews), [enabledViews]);
+    const toggleView = (view: MatrixViewKey) => setEnabledViews((current) => current.includes(view) ? current.filter((item) => item !== view) : [...current, view]);
 
     const absoluteMatrix = useMemo(
         () => buildMatrixModel(result, populationByRegion, 'absolute', hideMissingColumns),
@@ -36,16 +84,25 @@ export function MatrixResultPanel({result, loading, error, isDirty, populationBy
 
     return (
         <div className="results-stack">
+            <AnalyticsViewSelector
+                title="Представления аналитики: матрица"
+                views={MATRIX_VIEWS}
+                enabledSet={enabledViewSet}
+                enabledCount={enabledViews.length}
+                isDirty={isDirty}
+                onToggle={toggleView}
+            />
+
             <section className="panel result-display-selector-panel">
                 <div className="panel-header align-start compact-gap">
                     <div>
-                        <h2>Матрица регионов и показателей</h2>
-                        <p>Сначала показаны исходные значения, затем с учетом на населения, после этого — нормализация
+                        <h2>Настройки матрицы</h2>
+                        <p>Сначала показаны исходные значения, затем значения с учетом населения, после этого —
+                            нормализация
                             по каждому показателю.</p>
                     </div>
                     <div className="status-badges">
                         {result && <span className="status-badge">{result.valueKindLabel}</span>}
-                        {isDirty && <span className="warning-badge">Параметры сценария изменены</span>}
                     </div>
                 </div>
                 <div className="view-settings-grid analytics-inline-settings-grid">
@@ -67,79 +124,95 @@ export function MatrixResultPanel({result, loading, error, isDirty, populationBy
                 )}
             </section>
 
-            <MatrixHeatmapSection
-                title="Матрица абсолютных значений"
-                description="Исходные значения из аналитического результата. Цветовая шкала общая для всей матрицы."
-                matrix={absoluteMatrix}
-                loading={loading}
-                error={error}
-                showCellLabels={showCellLabels}
-                normalized={false}
-                emptyMessage="Матрица абсолютных значений пуста."
-            />
+            {enabledViewSet.has('absoluteHeatmap') && (
+                <MatrixHeatmapSection
+                    title="Матрица абсолютных значений"
+                    description="Исходные значения из аналитического результата. Цветовая шкала общая для всей матрицы."
+                    matrix={absoluteMatrix}
+                    loading={loading}
+                    error={error}
+                    showCellLabels={showCellLabels}
+                    normalized={false}
+                    emptyMessage="Матрица абсолютных значений пуста."
+                />
+            )}
 
-            <MatrixHeatmapSection
-                title="Матрица на численность населения"
-                description="Каждая ячейка пересчитана как значение показателя, делённое на население региона."
-                matrix={perCapitaMatrix}
-                loading={loading}
-                error={error}
-                showCellLabels={showCellLabels}
-                normalized={false}
-                emptyMessage="Матрица на население пуста."
-            />
+            {enabledViewSet.has('perCapitaHeatmap') && (
+                <MatrixHeatmapSection
+                    title="Матрица на численность населения"
+                    description="Каждая ячейка пересчитана как значение показателя, делённое на население региона."
+                    matrix={perCapitaMatrix}
+                    loading={loading}
+                    error={error}
+                    showCellLabels={showCellLabels}
+                    normalized={false}
+                    emptyMessage="Матрица на население пуста."
+                />
+            )}
 
-            <MatrixHeatmapSection
-                title="Нормализованная матрица абсолютных значений"
-                description="Нормализация выполнена отдельно внутри каждого показателя: минимум = 0, максимум = 100."
-                matrix={normalizedAbsoluteMatrix}
-                loading={loading}
-                error={error}
-                showCellLabels={showCellLabels}
-                normalized
-                emptyMessage="Нормализованная матрица абсолютных значений пуста."
-            />
+            {enabledViewSet.has('normalizedAbsoluteHeatmap') && (
+                <MatrixHeatmapSection
+                    title="Нормализованная матрица абсолютных значений"
+                    description="Нормализация выполнена отдельно внутри каждого показателя: минимум = 0, максимум = 100."
+                    matrix={normalizedAbsoluteMatrix}
+                    loading={loading}
+                    error={error}
+                    showCellLabels={showCellLabels}
+                    normalized
+                    emptyMessage="Нормализованная матрица абсолютных значений пуста."
+                />
+            )}
 
-            <MatrixHeatmapSection
-                title="Нормализованная матрица на население"
-                description="Пересчитанные на население значения нормализованы отдельно по каждому показателю."
-                matrix={normalizedPerCapitaMatrix}
-                loading={loading}
-                error={error}
-                showCellLabels={showCellLabels}
-                normalized
-                emptyMessage="Нормализованная матрица на население пуста."
-            />
+            {enabledViewSet.has('normalizedPerCapitaHeatmap') && (
+                <MatrixHeatmapSection
+                    title="Нормализованная матрица на население"
+                    description="Пересчитанные на население значения нормализованы отдельно по каждому показателю."
+                    matrix={normalizedPerCapitaMatrix}
+                    loading={loading}
+                    error={error}
+                    showCellLabels={showCellLabels}
+                    normalized
+                    emptyMessage="Нормализованная матрица на население пуста."
+                />
+            )}
 
-            <MatrixTableSection
-                title="Таблица абсолютных значений"
-                description="Точная матрица исходных значений."
-                matrix={absoluteMatrix}
-                loading={loading}
-                error={error}
-            />
+            {enabledViewSet.has('absoluteTable') && (
+                <MatrixTableSection
+                    title="Таблица абсолютных значений"
+                    description="Точная матрица исходных значений."
+                    matrix={absoluteMatrix}
+                    loading={loading}
+                    error={error}
+                />
+            )}
 
-            <MatrixTableSection
-                title="Таблица значений на население"
-                description="Точная матрица значений, пересчитанных на численность населения."
-                matrix={perCapitaMatrix}
-                loading={loading}
-                error={error}
-            />
+            {enabledViewSet.has('perCapitaTable') && (
+                <MatrixTableSection
+                    title="Таблица значений на население"
+                    description="Точная матрица значений, пересчитанных на численность населения."
+                    matrix={perCapitaMatrix}
+                    loading={loading}
+                    error={error}
+                />
+            )}
 
-            <section className="panel result-view-panel">
-                <Header title="Сводка матрицы"
-                        description="Размерность, заполненность и наличие населения для нормализации."/>
-                <Guard loading={loading} error={error} hasData={Boolean(result)} emptyMessage="Сводка недоступна.">
-                    <div className="analytics-card-grid metrics-grid-compact">
-                        <Card title="Регионов" value={result?.rows.length ?? 0}/>
-                        <Card title="Показателей" value={result?.columns.length ?? 0}/>
-                        <Card title="Ячеек" value={result?.cells.length ?? 0}/>
-                        <Card title="Missing ячеек" value={result?.cells.filter((cell) => cell.missing).length ?? 0}/>
-                        <Card title="Регионов с населением" value={`${knownPopulation} / ${result?.rows.length ?? 0}`}/>
-                    </div>
-                </Guard>
-            </section>
+            {enabledViewSet.has('summary') && (
+                <section className="panel result-view-panel">
+                    <Header title="Сводка матрицы"
+                            description="Размерность, заполненность и наличие населения для нормализации."/>
+                    <Guard loading={loading} error={error} hasData={Boolean(result)} emptyMessage="Сводка недоступна.">
+                        <div className="analytics-card-grid metrics-grid-compact">
+                            <Card title="Регионов" value={result?.rows.length ?? 0}/>
+                            <Card title="Показателей" value={result?.columns.length ?? 0}/>
+                            <Card title="Ячеек" value={result?.cells.length ?? 0}/>
+                            <Card title="Missing ячеек"
+                                  value={result?.cells.filter((cell) => cell.missing).length ?? 0}/>
+                            <Card title="Регионов с населением"
+                                  value={`${knownPopulation} / ${result?.rows.length ?? 0}`}/>
+                        </div>
+                    </Guard>
+                </section>
+            )}
         </div>
     );
 }
@@ -313,17 +386,17 @@ function buildHeatmapOption(matrix: MatrixModel, showCellLabels: boolean, normal
                 return `${matrix.rows[rowIndex]?.regionName ?? ''}<br/>${matrix.columns[columnIndex]?.indicatorName ?? ''}<br/>${formatObservationValue(value)} ${matrix.unitLabel}`;
             }
         },
-        grid: {left: 190, right: 48, top: 110, bottom: 54},
+        grid: {left: 230, right: 56, top: 150, bottom: 62},
         xAxis: {
             type: 'category',
-            data: matrix.columns.map((column) => truncateLabel(column.indicatorName, 26)),
-            axisLabel: {interval: 0, rotate: 35, width: 120, overflow: 'truncate'}
+            data: matrix.columns.map((column) => column.indicatorName),
+            axisLabel: {interval: 0, rotate: 0, width: 130, formatter: (value: string) => wrapChartLabel(value, 16, 4)}
         },
         yAxis: {
             type: 'category',
             inverse: true,
-            data: matrix.rows.map((row) => truncateLabel(row.regionName, 32)),
-            axisLabel: {width: 170, overflow: 'truncate'}
+            data: matrix.rows.map((row) => row.regionName),
+            axisLabel: {width: 205, formatter: (value: string) => wrapChartLabel(value, 23, 3)}
         },
         visualMap: {
             min,
@@ -348,7 +421,7 @@ function buildHeatmapOption(matrix: MatrixModel, showCellLabels: boolean, normal
 }
 
 function heatmapHeight(matrix: MatrixModel) {
-    return Math.max(420, Math.min(980, matrix.rows.length * 30 + 180));
+    return Math.max(460, Math.min(1100, matrix.rows.length * 42 + 220));
 }
 
 function makeCellKey(regionId: number, indicatorYearEntryId: number) {

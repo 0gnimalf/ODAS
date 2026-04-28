@@ -8,8 +8,10 @@ interface IndicatorTreePanelProps {
     error: string | null;
     selectedIds: number[];
     includeChildren: boolean;
+    includeDirectChildrenOnly?: boolean;
     onSelectedIdsChange: (next: number[]) => void;
     onIncludeChildrenChange: (next: boolean) => void;
+    onIncludeDirectChildrenOnlyChange?: (next: boolean) => void;
     selectionMode?: 'single' | 'multiple';
     embedded?: boolean;
     showIncludeChildrenOption?: boolean;
@@ -24,8 +26,10 @@ export function IndicatorTreePanel({
                                        error,
                                        selectedIds,
                                        includeChildren,
+                                       includeDirectChildrenOnly = false,
                                        onSelectedIdsChange,
                                        onIncludeChildrenChange,
+                                       onIncludeDirectChildrenOnlyChange,
                                        selectionMode = 'multiple',
                                        embedded = false,
                                        showIncludeChildrenOption = true,
@@ -129,6 +133,18 @@ export function IndicatorTreePanel({
                         />
                         <span>Учитывать поддерево выбранного узла</span>
                     </label>
+                    {selectionMode === 'multiple' && onIncludeDirectChildrenOnlyChange && (
+                        <label
+                            className={`check-row checkbox-card compact-checkbox-card ${!includeChildren ? 'is-muted' : ''}`}>
+                            <input
+                                type="checkbox"
+                                checked={includeDirectChildrenOnly}
+                                disabled={!includeChildren}
+                                onChange={(event) => onIncludeDirectChildrenOnlyChange(event.target.checked)}
+                            />
+                            <span>Только следующий уровень потомков</span>
+                        </label>
+                    )}
                 </div>
             )}
 

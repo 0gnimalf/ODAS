@@ -1,5 +1,5 @@
-import type {ReactNode} from 'react';
-import {useMemo, useState} from 'react';
+import type {ReactNode, UIEvent} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {formatObservationValue, truncateLabel} from '../../shared/lib/format';
 import type {ObservationReadDto, ObservationReadResultDto} from '../../shared/types/read';
 
@@ -48,6 +48,9 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
 ];
 
 const DEFAULT_VISIBLE_COLUMNS: TableColumnKey[] = COLUMN_DEFINITIONS.map((column) => column.key);
+const ROW_HEIGHT = 44;
+const HEADER_HEIGHT = 48;
+const VIRTUAL_OVERSCAN = 8;
 
 export function ObservationTable({result, loading, error, isDirty}: ObservationTableProps) {
     const [settingsVisible, setSettingsVisible] = useState(false);
@@ -58,8 +61,17 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
     const [valueKindFilter, setValueKindFilter] = useState('');
     const [unitCodeFilter, setUnitCodeFilter] = useState('');
     const [visibleRowLimit, setVisibleRowLimit] = useState(10);
+    const [scrollTop, setScrollTop] = useState(0);
+    const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
     const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
+
+    useEffect(() => {
+        setScrollTop(0);
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0;
+        }
+    }, [result]);
 
     const valueKindOptions = useMemo(
         () => Array.from(new Set(result?.observations.map((item) => item.valueKindLabel) ?? [])).sort((left, right) => left.localeCompare(right, 'ru')),
@@ -95,12 +107,28 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
     }, [result, searchText, valueKindFilter, unitCodeFilter, sortBy, sortDirection]);
 
     const visibleColumnDefinitions = COLUMN_DEFINITIONS.filter((column) => visibleColumnSet.has(column.key));
-    const tableMaxHeight = Math.max(1, visibleRowLimit) * 44 + 48;
+    const viewportHeight = Math.max(1, visibleRowLimit) * ROW_HEIGHT + HEADER_HEIGHT;
+    const virtualWindow = useMemo(
+        () => buildVirtualWindow(filteredObservations, scrollTop, visibleRowLimit),
+        [filteredObservations, scrollTop, visibleRowLimit]
+    );
 
     const toggleColumn = (columnKey: TableColumnKey) => {
         setVisibleColumns((current) => current.includes(columnKey)
             ? current.filter((item) => item !== columnKey)
             : [...current, columnKey]);
+    };
+
+    const handleScroll = (event: UIEvent<HTMLDivElement>) => {
+        setScrollTop(event.currentTarget.scrollTop);
+    };
+
+    const handleTableSettingChange = (callback: () => void) => {
+        setScrollTop(0);
+        if (scrollContainerRef.current) {
+            scrollContainerRef.current.scrollTop = 0;
+        }
+        callback();
     };
 
     return (
@@ -109,7 +137,7 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                 <div>
                     <h2>Таблица наблюдений</h2>
                     <p>Гибкое табличное представление с настройкой столбцов, сортировки и фильтров,</p>
-                    <p>а область данных прокручивается внутри блока.</p>
+                    <p>Строки подгружаются динамически при прокрутке.</p>
                 </div>
                 <div className="result-view-actions">
                     {isDirty && <span className="warning-badge">Фильтры запроса изменены</span>}
@@ -126,13 +154,13 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                         <label className="field">
                             <span>Поиск</span>
                             <input type="search" value={searchText}
-                                   onChange={(event) => setSearchText(event.target.value)}
+                                   onChange={(event) => handleTableSettingChange(() => setSearchText(event.target.value))}
                                    placeholder="Регион, показатель, значение…"/>
                         </label>
                         <label className="field">
                             <span>Вид значения</span>
                             <select value={valueKindFilter}
-                                    onChange={(event) => setValueKindFilter(event.target.value)}>
+                                    onChange={(event) => handleTableSettingChange(() => setValueKindFilter(event.target.value))}>
                                 <option value="">Все</option>
                                 {valueKindOptions.map((option) => <option key={option}
                                                                           value={option}>{option}</option>)}
@@ -140,20 +168,21 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                         </label>
                         <label className="field">
                             <span>Единица измерения</span>
-                            <select value={unitCodeFilter} onChange={(event) => setUnitCodeFilter(event.target.value)}>
+                            <select value={unitCodeFilter}
+                                    onChange={(event) => handleTableSettingChange(() => setUnitCodeFilter(event.target.value))}>
                                 <option value="">Все</option>
                                 {unitCodeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
                         </label>
                         <label className="field field-fit-content">
                             <span>Строк видно</span>
-                            <input type="number" min={5} max={150} value={visibleRowLimit}
-                                   onChange={(event) => setVisibleRowLimit(clamp(Number(event.target.value) || 25, 8, 80))}/>
+                            <input type="number" min={1} max={150} value={visibleRowLimit}
+                                   onChange={(event) => handleTableSettingChange(() => setVisibleRowLimit(clamp(Number(event.target.value) || 25, 1, 150)))}/>
                         </label>
                         <label className="field">
                             <span>Сортировать по</span>
                             <select value={sortBy}
-                                    onChange={(event) => setSortBy(event.target.value as TableColumnKey)}>
+                                    onChange={(event) => handleTableSettingChange(() => setSortBy(event.target.value as TableColumnKey))}>
                                 {COLUMN_DEFINITIONS.map((column) => <option key={column.key}
                                                                             value={column.key}>{column.label}</option>)}
                             </select>
@@ -161,7 +190,7 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                         <label className="field field-fit-content">
                             <span>Порядок</span>
                             <select value={sortDirection}
-                                    onChange={(event) => setSortDirection(event.target.value as TableSortDirection)}>
+                                    onChange={(event) => handleTableSettingChange(() => setSortDirection(event.target.value as TableSortDirection))}>
                                 <option value="asc">По возрастанию</option>
                                 <option value="desc">По убыванию</option>
                             </select>
@@ -185,9 +214,13 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                 <div className="table-summary-row">
                     <span>Всего: {result?.total ?? 0}</span>
                     <span>После фильтров: {filteredObservations.length}</span>
+                    <span>В области видимости: {virtualWindow.rows.length} строк</span>
                     <span>Видимая область: до {visibleRowLimit} строк</span>
                 </div>
-                <div className="table-wrapper table-wrapper-scroll" style={{maxHeight: tableMaxHeight}}>
+                <div ref={scrollContainerRef}
+                     className="table-wrapper table-wrapper-scroll virtual-table-wrapper"
+                     style={{height: viewportHeight, maxHeight: viewportHeight}}
+                     onScroll={handleScroll}>
                     <table>
                         <thead>
                         <tr>
@@ -195,18 +228,41 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                         </tr>
                         </thead>
                         <tbody>
-                        {filteredObservations.map((observation) => (
+                        {virtualWindow.topSpacerHeight > 0 && (
+                            <tr className="virtual-spacer-row" aria-hidden="true">
+                                <td colSpan={visibleColumnDefinitions.length}
+                                    style={{height: virtualWindow.topSpacerHeight}}/>
+                            </tr>
+                        )}
+                        {virtualWindow.rows.map((observation) => (
                             <tr key={observation.observationId}>
                                 {visibleColumnDefinitions.map((column) => <td
                                     key={column.key}>{column.render(observation)}</td>)}
                             </tr>
                         ))}
+                        {virtualWindow.bottomSpacerHeight > 0 && (
+                            <tr className="virtual-spacer-row" aria-hidden="true">
+                                <td colSpan={visibleColumnDefinitions.length}
+                                    style={{height: virtualWindow.bottomSpacerHeight}}/>
+                            </tr>
+                        )}
                         </tbody>
                     </table>
                 </div>
             </Guard>
         </section>
     );
+}
+
+function buildVirtualWindow(observations: ObservationReadDto[], scrollTop: number, visibleRowLimit: number) {
+    const firstVisibleIndex = Math.min(Math.max(0, Math.floor(scrollTop / ROW_HEIGHT)), Math.max(0, observations.length - 1));
+    const startIndex = Math.max(0, firstVisibleIndex - VIRTUAL_OVERSCAN);
+    const endIndex = Math.min(observations.length, firstVisibleIndex + visibleRowLimit + VIRTUAL_OVERSCAN * 2);
+    return {
+        rows: observations.slice(startIndex, endIndex),
+        topSpacerHeight: startIndex * ROW_HEIGHT,
+        bottomSpacerHeight: Math.max(0, observations.length - endIndex) * ROW_HEIGHT
+    };
 }
 
 function compareObservations(left: ObservationReadDto, right: ObservationReadDto, sortBy: TableColumnKey, direction: TableSortDirection) {

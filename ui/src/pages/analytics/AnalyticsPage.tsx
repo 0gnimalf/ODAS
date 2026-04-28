@@ -14,7 +14,7 @@ import {
     compareRegions
 } from '../../shared/api/odasAnalysisApi';
 import {MONTH_LABELS} from '../../shared/lib/format';
-import {expandSelectedIdsWithDescendants} from '../../shared/lib/tree';
+import {expandSelectedIdsWithDescendants, expandSelectedIdsWithDirectChildren} from '../../shared/lib/tree';
 import type {PopulationByRegion} from '../../shared/lib/population';
 import {buildPopulationByRegion, findPopulationIndicatorEntryId} from '../../shared/lib/population';
 import type {
@@ -108,6 +108,7 @@ export function AnalyticsPage() {
     const [matrixRegionIds, setMatrixRegionIds] = useState<number[]>([]);
     const [matrixIndicatorIds, setMatrixIndicatorIds] = useState<number[]>([]);
     const [matrixIncludeChildren, setMatrixIncludeChildren] = useState(false);
+    const [matrixIncludeDirectChildrenOnly, setMatrixIncludeDirectChildrenOnly] = useState(false);
     const [matrixLoading, setMatrixLoading] = useState(false);
     const [matrixError, setMatrixError] = useState<string | null>(null);
     const [matrixResult, setMatrixResult] = useState<RegionIndicatorMatrixResultDto | null>(null);
@@ -145,6 +146,7 @@ export function AnalyticsPage() {
         setSubtreeIndicatorIds([]);
         setMatrixIndicatorIds([]);
         setMatrixIncludeChildren(false);
+        setMatrixIncludeDirectChildrenOnly(false);
 
         if (!groupCode || year <= 0) return;
         let cancelled = false;
@@ -202,8 +204,12 @@ export function AnalyticsPage() {
     };
 
     const resolvedMatrixIndicatorIds = useMemo(
-        () => matrixIncludeChildren ? expandSelectedIdsWithDescendants(tree, matrixIndicatorIds) : matrixIndicatorIds,
-        [matrixIncludeChildren, matrixIndicatorIds, tree]
+        () => matrixIncludeChildren
+            ? matrixIncludeDirectChildrenOnly
+                ? expandSelectedIdsWithDirectChildren(tree, matrixIndicatorIds)
+                : expandSelectedIdsWithDescendants(tree, matrixIndicatorIds)
+            : matrixIndicatorIds,
+        [matrixIncludeChildren, matrixIncludeDirectChildrenOnly, matrixIndicatorIds, tree]
     );
 
     const seriesKey = useMemo(() => JSON.stringify({
@@ -244,10 +250,11 @@ export function AnalyticsPage() {
         matrixRegionIds,
         matrixIndicatorIds,
         matrixIncludeChildren,
+        matrixIncludeDirectChildrenOnly,
         resolvedMatrixIndicatorIds,
         forceRefresh,
         populationIndicatorEntryId
-    }), [groupCode, year, month, valueKind, matrixRegionIds, matrixIndicatorIds, matrixIncludeChildren, resolvedMatrixIndicatorIds, forceRefresh, populationIndicatorEntryId]);
+    }), [groupCode, year, month, valueKind, matrixRegionIds, matrixIndicatorIds, matrixIncludeChildren, matrixIncludeDirectChildrenOnly, resolvedMatrixIndicatorIds, forceRefresh, populationIndicatorEntryId]);
 
     const syncTree = async () => {
         if (!groupCode || year <= 0) return;
@@ -428,7 +435,9 @@ export function AnalyticsPage() {
 
     const loading = scenario === 'series' ? seriesLoading : scenario === 'compare' ? compareLoading : scenario === 'subtree' ? subtreeLoading : matrixLoading;
     const activeScenario = SCENARIOS.find((item) => item.key === scenario) ?? SCENARIOS[0];
-    const matrixSelectionSummary = scenario === 'matrix' && matrixIncludeChildren ? `Будет отправлено ${resolvedMatrixIndicatorIds.length} показателей с учётом потомков.` : null;
+    const matrixSelectionSummary = scenario === 'matrix' && matrixIncludeChildren
+        ? `Будет отправлено ${resolvedMatrixIndicatorIds.length} показателей: ${matrixIncludeDirectChildrenOnly ? 'выбранные узлы и их прямые потомки' : 'выбранные узлы и всё поддерево'}.`
+        : null;
 
     const submit = () => {
         if (scenario === 'series') void loadSeries();
@@ -568,8 +577,13 @@ export function AnalyticsPage() {
                                         error={treeError}
                                         selectedIds={activeIndicatorIds}
                                         includeChildren={scenario === 'matrix' ? matrixIncludeChildren : false}
+                                        includeDirectChildrenOnly={scenario === 'matrix' ? matrixIncludeDirectChildrenOnly : false}
                                         onSelectedIdsChange={setActiveIndicatorIds}
-                                        onIncludeChildrenChange={setMatrixIncludeChildren}
+                                        onIncludeChildrenChange={(value) => {
+                                            setMatrixIncludeChildren(value);
+                                            if (!value) setMatrixIncludeDirectChildrenOnly(false);
+                                        }}
+                                        onIncludeDirectChildrenOnlyChange={setMatrixIncludeDirectChildrenOnly}
                                         selectionMode={scenario === 'matrix' ? 'multiple' : 'single'}
                                         embedded
                                         showIncludeChildrenOption={scenario === 'matrix'}

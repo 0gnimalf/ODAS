@@ -1,7 +1,7 @@
 import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, formatPercentValue} from '../../shared/lib/format';
+import {formatObservationValue, formatPercentValue, wrapChartLabel} from '../../shared/lib/format';
 import type {MonthlySeriesResultDto, PeriodGrowthMetricsResultDto} from '../../shared/types/analysis';
 
 type ViewKey = 'cumulative' | 'nonCumulative' | 'quarters' | 'growth' | 'seriesTable' | 'quarterTable' | 'tech';
@@ -45,7 +45,11 @@ export function SeriesResultPanel({seriesResult, growthResult, loading, error, i
                 <ReactECharts style={{height: 420}} option={{
                     tooltip: {trigger: 'axis'},
                     grid: {left: 56, right: 24, top: 24, bottom: 48},
-                    xAxis: {type: 'category', data: seriesResult?.points.map((p) => p.periodLabel) ?? []},
+                    xAxis: {
+                        type: 'category',
+                        data: seriesResult?.points.map((p) => p.periodLabel) ?? [],
+                        axisLabel: {formatter: (value: string) => wrapChartLabel(value, 12, 2)}
+                    },
                     yAxis: {type: 'value'},
                     series: [{
                         type: 'line',
@@ -66,7 +70,11 @@ export function SeriesResultPanel({seriesResult, growthResult, loading, error, i
                 <ReactECharts style={{height: 380}} option={{
                     tooltip: {trigger: 'axis'},
                     grid: {left: 56, right: 24, top: 24, bottom: 48},
-                    xAxis: {type: 'category', data: seriesResult?.points.map((p) => p.periodLabel) ?? []},
+                    xAxis: {
+                        type: 'category',
+                        data: seriesResult?.points.map((p) => p.periodLabel) ?? [],
+                        axisLabel: {formatter: (value: string) => wrapChartLabel(value, 12, 2)}
+                    },
                     yAxis: {type: 'value'},
                     series: [{
                         type: 'bar',
@@ -90,7 +98,11 @@ export function SeriesResultPanel({seriesResult, growthResult, loading, error, i
                 <ReactECharts style={{height: 360}} option={{
                     tooltip: {trigger: 'axis'},
                     grid: {left: 56, right: 24, top: 24, bottom: 48},
-                    xAxis: {type: 'category', data: quarterRows.map((q) => q.label)},
+                    xAxis: {
+                        type: 'category',
+                        data: quarterRows.map((q) => q.label),
+                        axisLabel: {formatter: (value: string) => wrapChartLabel(value, 12, 2)}
+                    },
                     yAxis: {type: 'value'},
                     series: [{
                         type: 'bar',

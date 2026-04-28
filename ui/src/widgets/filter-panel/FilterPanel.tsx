@@ -19,6 +19,7 @@ interface FilterPanelProps {
     selectedRegionIds: number[];
     selectedIndicatorIds: number[];
     includeChildren: boolean;
+    includeDirectChildrenOnly: boolean;
     treeSyncLoading: boolean;
     onGroupCodeChange: (value: IndicatorGroupCode | '') => void;
     onYearChange: (value: number) => void;
@@ -26,6 +27,7 @@ interface FilterPanelProps {
     onRegionIdsChange: (value: number[]) => void;
     onSelectedIndicatorIdsChange: (value: number[]) => void;
     onIncludeChildrenChange: (value: boolean) => void;
+    onIncludeDirectChildrenOnlyChange: (value: boolean) => void;
     onSyncTree: () => void;
     onLoadObservations: () => void;
     canLoadObservations: boolean;
@@ -61,6 +63,7 @@ export function FilterPanel({
                                 selectedRegionIds,
                                 selectedIndicatorIds,
                                 includeChildren,
+                                includeDirectChildrenOnly,
                                 treeSyncLoading,
                                 onGroupCodeChange,
                                 onYearChange,
@@ -68,6 +71,7 @@ export function FilterPanel({
                                 onRegionIdsChange,
                                 onSelectedIndicatorIdsChange,
                                 onIncludeChildrenChange,
+                                onIncludeDirectChildrenOnlyChange,
                                 onSyncTree,
                                 onLoadObservations,
                                 canLoadObservations,
@@ -165,8 +169,10 @@ export function FilterPanel({
                         error={treeError}
                         selectedIds={selectedIndicatorIds}
                         includeChildren={includeChildren}
+                        includeDirectChildrenOnly={includeDirectChildrenOnly}
                         onSelectedIdsChange={onSelectedIndicatorIdsChange}
                         onIncludeChildrenChange={onIncludeChildrenChange}
+                        onIncludeDirectChildrenOnlyChange={onIncludeDirectChildrenOnlyChange}
                         canSyncTree={Boolean(selectedGroupCode) && selectedYear > 0}
                         syncingTree={treeSyncLoading}
                         onSyncTree={onSyncTree}

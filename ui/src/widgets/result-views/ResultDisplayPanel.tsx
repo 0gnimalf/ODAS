@@ -10,6 +10,8 @@ interface ResultDisplayPanelProps {
     loading: boolean;
     error: string | null;
     isDirty: boolean;
+    regionChartAvailable: boolean;
+    regionChartUnavailableReason: string;
 }
 
 interface ResultViewDefinition {
@@ -33,12 +35,20 @@ const RESULT_VIEW_DEFINITIONS: ResultViewDefinition[] = [
 
 const DEFAULT_ENABLED_VIEWS: ResultViewKey[] = ['regionCompareBar', 'table'];
 
-export function ResultDisplayPanel({result, loading, error, isDirty}: ResultDisplayPanelProps) {
+export function ResultDisplayPanel({
+                                       result,
+                                       loading,
+                                       error,
+                                       isDirty,
+                                       regionChartAvailable,
+                                       regionChartUnavailableReason
+                                   }: ResultDisplayPanelProps) {
     const [enabledViewKeys, setEnabledViewKeys] = useState<ResultViewKey[]>(DEFAULT_ENABLED_VIEWS);
 
     const enabledViewKeySet = useMemo(() => new Set(enabledViewKeys), [enabledViewKeys]);
 
     const toggleView = (viewKey: ResultViewKey) => {
+        if (viewKey === 'regionCompareBar' && !regionChartAvailable) return;
         setEnabledViewKeys((current) => {
             if (current.includes(viewKey)) {
                 return current.filter((item) => item !== viewKey);
@@ -57,29 +67,34 @@ export function ResultDisplayPanel({result, loading, error, isDirty}: ResultDisp
                             настройки.</p>
                     </div>
                     <div className="status-badges">
-                        <span className="status-badge">Активно: {enabledViewKeys.length}</span>
+                        <span
+                            className="status-badge">Активно: {enabledViewKeys.filter((key) => key !== 'regionCompareBar' || regionChartAvailable).length}</span>
                         {isDirty && <span className="warning-badge">Фильтры изменены</span>}
                     </div>
                 </div>
 
                 <div className="result-view-toggle-grid">
                     {RESULT_VIEW_DEFINITIONS.map((view) => {
-                        const enabled = enabledViewKeySet.has(view.key);
+                        const unavailable = view.key === 'regionCompareBar' && !regionChartAvailable;
+                        const enabled = enabledViewKeySet.has(view.key) && !unavailable;
                         return (
-                            <label key={view.key} className={`result-view-toggle-card ${enabled ? 'is-enabled' : ''}`}>
+                            <label key={view.key}
+                                   className={`result-view-toggle-card ${enabled ? 'is-enabled' : ''} ${unavailable ? 'is-disabled' : ''}`}
+                                   title={unavailable ? regionChartUnavailableReason : undefined}>
                                 <div className="result-view-toggle-main">
                                     <input
                                         type="checkbox"
                                         checked={enabled}
+                                        disabled={unavailable}
                                         onChange={() => toggleView(view.key)}
                                     />
                                     <div>
                                         <strong>{view.title}</strong>
-                                        <p>{view.description}</p>
+                                        <p>{unavailable ? regionChartUnavailableReason : view.description}</p>
                                     </div>
                                 </div>
                                 <span className={`result-view-toggle-status ${enabled ? 'is-enabled' : ''}`}>
-                                    {enabled ? 'Показать' : 'Скрыто'}
+                                    {unavailable ? 'Недоступно' : enabled ? 'Показать' : 'Скрыто'}
                                 </span>
                             </label>
                         );
@@ -87,7 +102,7 @@ export function ResultDisplayPanel({result, loading, error, isDirty}: ResultDisp
                 </div>
             </section>
 
-            {enabledViewKeySet.has('regionCompareBar') && (
+            {regionChartAvailable && enabledViewKeySet.has('regionCompareBar') && (
                 <RegionCompareBarChart result={result} loading={loading} error={error} isDirty={isDirty}/>
             )}
 

@@ -13,6 +13,7 @@ import type {
     ObservationReadResultDto,
     RegionReadDto
 } from '../../shared/types/read';
+import {expandSelectedIdsWithDirectChildren} from '../../shared/lib/tree';
 import {FilterPanel} from '../../widgets/filter-panel/FilterPanel';
 import {ResultDisplayPanel} from '../../widgets/result-views/ResultDisplayPanel';
 
@@ -25,6 +26,7 @@ function buildRequestKey(payload: {
     regionIds: number[];
     indicatorYearEntryIds: number[];
     includeChildren: boolean;
+    includeDirectChildrenOnly: boolean;
     forceRefresh: boolean;
 }): string {
     return JSON.stringify({
@@ -45,6 +47,7 @@ export function ReadExplorerPage() {
     const [regionIds, setRegionIds] = useState<number[]>([]);
     const [indicatorYearEntryIds, setIndicatorYearEntryIds] = useState<number[]>([]);
     const [includeChildren, setIncludeChildren] = useState(false);
+    const [includeDirectChildrenOnly, setIncludeDirectChildrenOnly] = useState(false);
     const [forceRefresh, setForceRefresh] = useState(false);
 
     const [bootLoading, setBootLoading] = useState(true);
@@ -130,6 +133,17 @@ export function ReadExplorerPage() {
         };
     }, [groupCode, year, treeReloadNonce]);
 
+    const resolvedIndicatorYearEntryIds = useMemo(
+        () => includeChildren && includeDirectChildrenOnly
+            ? expandSelectedIdsWithDirectChildren(tree, indicatorYearEntryIds)
+            : indicatorYearEntryIds,
+        [includeChildren, includeDirectChildrenOnly, indicatorYearEntryIds, tree]
+    );
+    const requestIndicatorYearEntryIds = includeChildren && includeDirectChildrenOnly
+        ? resolvedIndicatorYearEntryIds
+        : indicatorYearEntryIds;
+    const requestIncludeChildren = includeChildren && !includeDirectChildrenOnly;
+
     const currentRequestKey = useMemo(
         () =>
             buildRequestKey({
@@ -137,18 +151,20 @@ export function ReadExplorerPage() {
                 year,
                 month,
                 regionIds,
-                indicatorYearEntryIds,
-                includeChildren,
+                indicatorYearEntryIds: requestIndicatorYearEntryIds,
+                includeChildren: requestIncludeChildren,
+                includeDirectChildrenOnly,
                 forceRefresh
             }),
-        [groupCode, year, month, regionIds, indicatorYearEntryIds, includeChildren, forceRefresh]
+        [groupCode, year, month, regionIds, requestIndicatorYearEntryIds, requestIncludeChildren, includeDirectChildrenOnly, forceRefresh]
     );
 
     const isDirty = Boolean(observationResult) && currentRequestKey !== lastAppliedRequestKey;
-    const canLoadObservations = Boolean(groupCode) && regionIds.length > 0 && indicatorYearEntryIds.length > 0 && !treeLoading && !treeSyncLoading;
+    const canLoadObservations = Boolean(groupCode) && regionIds.length > 0 && requestIndicatorYearEntryIds.length > 0 && !treeLoading && !treeSyncLoading;
+    const canDisplayRegionChart = indicatorYearEntryIds.length === 1 && !includeChildren;
 
     const handleLoadObservations = async () => {
-        if (!groupCode || regionIds.length === 0 || indicatorYearEntryIds.length === 0) {
+        if (!groupCode || regionIds.length === 0 || requestIndicatorYearEntryIds.length === 0) {
             return;
         }
 
@@ -161,8 +177,8 @@ export function ReadExplorerPage() {
                 year,
                 month,
                 regionIds,
-                indicatorYearEntryIds,
-                includeChildren,
+                indicatorYearEntryIds: requestIndicatorYearEntryIds,
+                includeChildren: requestIncludeChildren,
                 forceRefresh
             });
 
@@ -240,7 +256,12 @@ export function ReadExplorerPage() {
                         onMonthChange={setMonth}
                         onRegionIdsChange={setRegionIds}
                         onSelectedIndicatorIdsChange={setIndicatorYearEntryIds}
-                        onIncludeChildrenChange={setIncludeChildren}
+                        onIncludeChildrenChange={(value) => {
+                            setIncludeChildren(value);
+                            if (!value) setIncludeDirectChildrenOnly(false);
+                        }}
+                        includeDirectChildrenOnly={includeDirectChildrenOnly}
+                        onIncludeDirectChildrenOnlyChange={setIncludeDirectChildrenOnly}
                         onSyncTree={() => void handleSyncTree()}
                         onLoadObservations={() => void handleLoadObservations()}
                         canLoadObservations={canLoadObservations}
@@ -254,6 +275,8 @@ export function ReadExplorerPage() {
                         loading={observationLoading}
                         error={observationError}
                         isDirty={isDirty}
+                        regionChartAvailable={canDisplayRegionChart}
+                        regionChartUnavailableReason="График сравнения регионов доступен только для одного показателя без учёта потомков."
                     />
                 </>
             )}

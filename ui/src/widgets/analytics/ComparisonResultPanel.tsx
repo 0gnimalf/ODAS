@@ -1,10 +1,28 @@
 import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, formatPercentValue, truncateLabel} from '../../shared/lib/format';
+import {formatObservationValue, formatPercentValue, wrapChartLabel} from '../../shared/lib/format';
 import type {PopulationByRegion} from '../../shared/lib/population';
 import {countKnownPopulation} from '../../shared/lib/population';
 import type {RegionComparisonItemDto, RegionComparisonResultDto} from '../../shared/types/analysis';
+import {type AnalyticsViewDefinition, AnalyticsViewSelector} from './AnalyticsViewSelector';
+
+type CompareViewKey = 'combinedChart' | 'perCapitaChart' | 'summary' | 'table';
+
+const COMPARE_VIEWS: Array<AnalyticsViewDefinition<CompareViewKey>> = [
+    {
+        key: 'combinedChart',
+        title: 'Значения и доли',
+        description: 'Рейтинг регионов: абсолютное значение, а доля указана в скобках.'
+    },
+    {
+        key: 'perCapitaChart',
+        title: 'На численность населения',
+        description: 'Нормализованный рейтинг по населению региона.'
+    },
+    {key: 'summary', title: 'Сводка распределения', description: 'Минимум, максимум, среднее, медиана и итог.'},
+    {key: 'table', title: 'Таблица сравнения', description: 'Контрольная таблица по регионам, долям и населению.'}
+];
 
 export function ComparisonResultPanel({result, loading, error, isDirty, populationByRegion, populationWarning}: {
     result: RegionComparisonResultDto | null;
@@ -14,10 +32,14 @@ export function ComparisonResultPanel({result, loading, error, isDirty, populati
     populationByRegion: PopulationByRegion;
     populationWarning: string | null;
 }) {
+    const [enabledViews, setEnabledViews] = useState<CompareViewKey[]>(['combinedChart', 'perCapitaChart', 'summary', 'table']);
     const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
     const [maxRegions, setMaxRegions] = useState(25);
     const [hideMissing, setHideMissing] = useState(true);
     const [filter, setFilter] = useState('');
+
+    const enabledViewSet = useMemo(() => new Set(enabledViews), [enabledViews]);
+    const toggleView = (view: CompareViewKey) => setEnabledViews((current) => current.includes(view) ? current.filter((item) => item !== view) : [...current, view]);
 
     const items = useMemo(() => {
         const normalizedFilter = filter.trim().toLowerCase();
@@ -47,16 +69,24 @@ export function ComparisonResultPanel({result, loading, error, isDirty, populati
 
     return (
         <div className="results-stack">
+            <AnalyticsViewSelector
+                title="Представления аналитики: сравнение регионов"
+                views={COMPARE_VIEWS}
+                enabledSet={enabledViewSet}
+                enabledCount={enabledViews.length}
+                isDirty={isDirty}
+                onToggle={toggleView}
+            />
+
             <section className="panel result-display-selector-panel">
                 <div className="panel-header align-start compact-gap">
                     <div>
-                        <h2>Сравнение регионов</h2>
+                        <h2>Настройки сравнения</h2>
                         <p>Абсолютное значение и доля показаны в одном рейтинге. Отдельно строится пересчёт на
                             численность населения.</p>
                     </div>
                     <div className="status-badges">
                         {result && <span className="status-badge">{result.valueKindLabel}</span>}
-                        {isDirty && <span className="warning-badge">Параметры сценария изменены</span>}
                     </div>
                 </div>
 
@@ -87,89 +117,100 @@ export function ComparisonResultPanel({result, loading, error, isDirty, populati
                 </div>
             </section>
 
-            <section className="panel chart-panel result-view-panel">
-                <Header title="Абсолютные значения и доли"
-                        description="Подпись у каждого столбца содержит значение и долю региона в общем объёме."/>
-                <Guard loading={loading} error={error} hasData={items.length > 0}
-                       emptyMessage="Нет регионов для отображения рейтинга.">
-                    <ReactECharts style={{height: chartHeight(items.length)}}
-                                  option={buildCombinedRankingOption(items, result?.unitCodeLabel ?? '')} notMerge/>
-                </Guard>
-            </section>
+            {enabledViewSet.has('combinedChart') && (
+                <section className="panel chart-panel result-view-panel">
+                    <Header title="Абсолютные значения и доли"
+                            description="Подпись у каждого столбца содержит значение и долю региона в общем объёме."/>
+                    <Guard loading={loading} error={error} hasData={items.length > 0}
+                           emptyMessage="Нет регионов для отображения рейтинга.">
+                        <ReactECharts style={{height: chartHeight(items.length)}}
+                                      option={buildCombinedRankingOption(items, result?.unitCodeLabel ?? '')} notMerge/>
+                    </Guard>
+                </section>
+            )}
 
-            <section className="panel chart-panel result-view-panel">
-                <Header title="Нормализация по численности населения"
-                        description="Значение показателя делится на численность населения соответствующего региона за выбранный год."/>
-                {populationWarning && <div className="warning-note top-margin-8">{populationWarning}</div>}
-                {!populationWarning && result && knownPopulation < result.items.length && (
-                    <div className="warning-note top-margin-8">Население найдено не для всех
-                        регионов: {knownPopulation} из {result.items.length}.</div>
-                )}
-                <Guard loading={loading} error={error}
-                       hasData={perCapitaItems.some((item) => item.perCapitaValue != null)}
-                       emptyMessage="Нет данных для нормализации по населению.">
-                    <ReactECharts style={{height: chartHeight(perCapitaItems.length)}}
-                                  option={buildPerCapitaOption(perCapitaItems, result?.unitCodeLabel ?? '')} notMerge/>
-                </Guard>
-                <div className="analytics-card-grid metrics-grid-compact top-margin-16">
-                    <Card title="Регионов с населением" value={`${knownPopulation} / ${result?.items.length ?? 0}`}/>
-                    <Card title="Среднее на человека" value={formatObservationValue(perCapitaSummary.average)}/>
-                    <Card title="Максимум на человека" value={formatObservationValue(perCapitaSummary.max)}/>
-                    <Card title="Минимум на человека" value={formatObservationValue(perCapitaSummary.min)}/>
-                </div>
-            </section>
-
-            <section className="panel result-view-panel">
-                <Header title="Сводка распределения"
-                        description="Основные статистики по исходным значениям выбранного показателя."/>
-                <Guard loading={loading} error={error} hasData={Boolean(result)}
-                       emptyMessage="Сводка ещё не сформирована.">
-                    <div className="analytics-card-grid metrics-grid-compact">
-                        <Card title="Запрошено регионов" value={result?.summary.requestedRegionCount ?? 0}/>
-                        <Card title="Найдено значений" value={result?.summary.foundRegionCount ?? 0}/>
-                        <Card title="Минимум" value={formatObservationValue(result?.summary.minValue)}/>
-                        <Card title="Максимум" value={formatObservationValue(result?.summary.maxValue)}/>
-                        <Card title="Среднее" value={formatObservationValue(result?.summary.averageValue)}/>
-                        <Card title="Медиана" value={formatObservationValue(result?.summary.medianValue)}/>
-                        <Card title="Итого" value={formatObservationValue(result?.summary.totalValue)}/>
+            {enabledViewSet.has('perCapitaChart') && (
+                <section className="panel chart-panel result-view-panel">
+                    <Header title="Нормализация по численности населения"
+                            description="Значение показателя делится на численность населения соответствующего региона за выбранный год."/>
+                    {populationWarning && <div className="warning-note top-margin-8">{populationWarning}</div>}
+                    {!populationWarning && result && knownPopulation < result.items.length && (
+                        <div className="warning-note top-margin-8">Население найдено не для всех
+                            регионов: {knownPopulation} из {result.items.length}.</div>
+                    )}
+                    <Guard loading={loading} error={error}
+                           hasData={perCapitaItems.some((item) => item.perCapitaValue != null)}
+                           emptyMessage="Нет данных для нормализации по населению.">
+                        <ReactECharts style={{height: chartHeight(perCapitaItems.length)}}
+                                      option={buildPerCapitaOption(perCapitaItems, result?.unitCodeLabel ?? '')}
+                                      notMerge/>
+                    </Guard>
+                    <div className="analytics-card-grid metrics-grid-compact top-margin-16">
+                        <Card title="Регионов с населением"
+                              value={`${knownPopulation} / ${result?.items.length ?? 0}`}/>
+                        <Card title="Среднее на человека" value={formatObservationValue(perCapitaSummary.average)}/>
+                        <Card title="Максимум на человека" value={formatObservationValue(perCapitaSummary.max)}/>
+                        <Card title="Минимум на человека" value={formatObservationValue(perCapitaSummary.min)}/>
                     </div>
-                </Guard>
-            </section>
+                </section>
+            )}
 
-            <section className="panel table-panel result-view-panel">
-                <Header title="Таблица сравнения" description="Регион, значение, доля, ранг и пересчёт на население."/>
-                <Guard loading={loading} error={error} hasData={items.length > 0}
-                       emptyMessage="Нет строк для таблицы сравнения.">
-                    <div className="table-wrapper table-wrapper-scroll comparison-table-scroll">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Ранг</th>
-                                <th>Регион</th>
-                                <th>Значение</th>
-                                <th>Доля</th>
-                                <th>Население</th>
-                                <th>На человека</th>
-                                <th>Δ к среднему</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {perCapitaItems.map((item) => (
-                                <tr key={item.regionId}>
-                                    <td>{item.rank ?? '—'}</td>
-                                    <td>{item.regionName}</td>
-                                    <td>{formatObservationValue(item.value)}</td>
-                                    <td>{formatPercentValue(item.shareOfTotalPercent)}</td>
-                                    <td>{formatObservationValue(item.population)}</td>
-                                    <td>{formatObservationValue(item.perCapitaValue)}</td>
-                                    <td>{formatObservationValue(item.deltaFromAverage)}</td>
+            {enabledViewSet.has('summary') && (
+                <section className="panel result-view-panel">
+                    <Header title="Сводка распределения"
+                            description="Основные статистики по исходным значениям выбранного показателя."/>
+                    <Guard loading={loading} error={error} hasData={Boolean(result)}
+                           emptyMessage="Сводка ещё не сформирована.">
+                        <div className="analytics-card-grid metrics-grid-compact">
+                            <Card title="Запрошено регионов" value={result?.summary.requestedRegionCount ?? 0}/>
+                            <Card title="Найдено значений" value={result?.summary.foundRegionCount ?? 0}/>
+                            <Card title="Минимум" value={formatObservationValue(result?.summary.minValue)}/>
+                            <Card title="Максимум" value={formatObservationValue(result?.summary.maxValue)}/>
+                            <Card title="Среднее" value={formatObservationValue(result?.summary.averageValue)}/>
+                            <Card title="Медиана" value={formatObservationValue(result?.summary.medianValue)}/>
+                            <Card title="Итого" value={formatObservationValue(result?.summary.totalValue)}/>
+                        </div>
+                    </Guard>
+                </section>
+            )}
+
+            {enabledViewSet.has('table') && (
+                <section className="panel table-panel result-view-panel">
+                    <Header title="Таблица сравнения"
+                            description="Регион, значение, доля, ранг и пересчёт на население."/>
+                    <Guard loading={loading} error={error} hasData={items.length > 0}
+                           emptyMessage="Нет строк для таблицы сравнения.">
+                        <div className="table-wrapper table-wrapper-scroll comparison-table-scroll">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Ранг</th>
+                                    <th>Регион</th>
+                                    <th>Значение</th>
+                                    <th>Доля</th>
+                                    <th>Население</th>
+                                    <th>На человека</th>
+                                    <th>Δ к среднему</th>
                                 </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </Guard>
-            </section>
+                                </thead>
+                                <tbody>
+                                {perCapitaItems.map((item) => (
+                                    <tr key={item.regionId}>
+                                        <td>{item.rank ?? '—'}</td>
+                                        <td>{item.regionName}</td>
+                                        <td>{formatObservationValue(item.value)}</td>
+                                        <td>{formatPercentValue(item.shareOfTotalPercent)}</td>
+                                        <td>{formatObservationValue(item.population)}</td>
+                                        <td>{formatObservationValue(item.perCapitaValue)}</td>
+                                        <td>{formatObservationValue(item.deltaFromAverage)}</td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Guard>
+                </section>
+            )}
         </div>
     );
 }
@@ -184,13 +225,13 @@ function buildCombinedRankingOption(items: RegionComparisonItemDto[], unitLabel:
                 return `${item.regionName}<br/>Значение: ${formatObservationValue(item.value)} ${unitLabel}<br/>Доля: ${formatPercentValue(item.shareOfTotalPercent)}`;
             }
         },
-        grid: {left: 230, right: 160, top: 24, bottom: 34},
+        grid: {left: 270, right: 180, top: 28, bottom: 36},
         xAxis: {type: 'value', axisLabel: {formatter: (value: number) => formatObservationValue(value)}},
         yAxis: {
             type: 'category',
             inverse: true,
             data: items.map((item) => item.regionName),
-            axisLabel: {width: 205, overflow: 'truncate'}
+            axisLabel: {width: 240, formatter: (value: string) => wrapChartLabel(value, 24, 3)}
         },
         dataZoom: items.length > 18 ? [
             {type: 'slider', yAxisIndex: 0, right: 4, width: 12, start: 0, end: Math.min(100, 18 / items.length * 100)},
@@ -226,13 +267,13 @@ function buildPerCapitaOption(items: Array<RegionComparisonItemDto & {
                 return `${item.regionName}<br/>На человека: ${formatObservationValue(item.perCapitaValue)} ${unitLabel}/чел.<br/>Население: ${formatObservationValue(item.population)}`;
             }
         },
-        grid: {left: 230, right: 120, top: 24, bottom: 34},
+        grid: {left: 270, right: 130, top: 28, bottom: 36},
         xAxis: {type: 'value', axisLabel: {formatter: (value: number) => formatObservationValue(value)}},
         yAxis: {
             type: 'category',
             inverse: true,
-            data: sorted.map((item) => truncateLabel(item.regionName, 42)),
-            axisLabel: {width: 205, overflow: 'truncate'}
+            data: sorted.map((item) => item.regionName),
+            axisLabel: {width: 240, formatter: (value: string) => wrapChartLabel(value, 24, 3)}
         },
         dataZoom: sorted.length > 18 ? [
             {
@@ -269,7 +310,7 @@ function buildPerCapitaSummary(items: Array<{ perCapitaValue: number | null }>) 
 }
 
 function chartHeight(rowCount: number) {
-    return Math.max(340, Math.min(820, rowCount * 34 + 90));
+    return Math.max(340, Math.min(820, rowCount * 42 + 110));
 }
 
 function Header({title, description}: { title: string; description: string }) {

@@ -101,3 +101,30 @@ export function expandSelectedIdsWithDescendants(
     visit(nodes);
     return Array.from(expandedIds);
 }
+
+export function expandSelectedIdsWithDirectChildren(
+    nodes: IndicatorTreeNodeReadDto[],
+    selectedIds: number[]
+): number[] {
+    if (selectedIds.length === 0) {
+        return [];
+    }
+
+    const selectedIdSet = new Set(selectedIds);
+    const expandedIds = new Set<number>();
+
+    const visit = (items: IndicatorTreeNodeReadDto[]) => {
+        items.forEach((item) => {
+            if (selectedIdSet.has(item.id)) {
+                expandedIds.add(item.id);
+                item.children.forEach((child) => expandedIds.add(child.id));
+            }
+            if (item.children.length > 0) {
+                visit(item.children);
+            }
+        });
+    };
+
+    visit(nodes);
+    return Array.from(expandedIds);
+}

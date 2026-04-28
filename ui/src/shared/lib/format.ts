@@ -29,3 +29,46 @@ export function truncateLabel(value: string, maxLength = 44): string {
     }
     return `${normalized.slice(0, Math.max(0, maxLength - 1)).trimEnd()}…`;
 }
+
+export function wrapChartLabel(value: string, lineLength = 18, maxLines = 3): string {
+    const normalized = value.replace(/\s+/g, ' ').trim();
+    if (!normalized) return '';
+
+    const words = normalized.split(' ');
+    const lines: string[] = [];
+    let currentLine = '';
+
+    for (const word of words) {
+        const candidate = currentLine ? `${currentLine} ${word}` : word;
+        if (candidate.length <= lineLength) {
+            currentLine = candidate;
+            continue;
+        }
+
+        if (currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            lines.push(word);
+            currentLine = '';
+        }
+
+        if (lines.length === maxLines) break;
+    }
+
+    if (currentLine && lines.length < maxLines) {
+        lines.push(currentLine);
+    }
+
+    const consumedText = lines.join(' ').replace(/…$/, '');
+    const hasHiddenText = consumedText.length < normalized.length;
+    if (hasHiddenText && lines.length > 0) {
+        const lastIndex = lines.length - 1;
+        lines[lastIndex] = truncateLabel(lines[lastIndex], Math.max(2, lineLength));
+        if (!lines[lastIndex].endsWith('…')) {
+            lines[lastIndex] = `${lines[lastIndex].replace(/…$/, '')}…`;
+        }
+    }
+
+    return lines.join('\n');
+}

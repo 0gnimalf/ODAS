@@ -998,3 +998,28 @@ th.sticky-first-column {
         grid-template-columns: 1fr;
     }
 }
+
+.result-view-toggle-card.is-disabled {
+    opacity: 0.62;
+    cursor: not-allowed;
+    border-style: dashed;
+}
+
+.result-view-toggle-card.is-disabled input {
+    cursor: not-allowed;
+}
+
+.checkbox-card.is-muted {
+    opacity: 0.58;
+}
+
+.virtual-table-wrapper thead th {
+    position: sticky;
+    top: 0;
+    z-index: 3;
+}
+
+.virtual-spacer-row td {
+    padding: 0 !important;
+    border: 0 !important;
+}

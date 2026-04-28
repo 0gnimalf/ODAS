@@ -1,8 +1,16 @@
 import type {ReactNode} from 'react';
 import {useEffect, useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, formatPercentValue, truncateLabel} from '../../shared/lib/format';
+import {formatObservationValue, formatPercentValue, truncateLabel, wrapChartLabel} from '../../shared/lib/format';
 import type {SubtreeSliceNodeDto, SubtreeSliceResultDto} from '../../shared/types/analysis';
+import {type AnalyticsViewDefinition, AnalyticsViewSelector} from './AnalyticsViewSelector';
+
+type SubtreeViewKey = 'pies' | 'table';
+
+const SUBTREE_VIEWS: Array<AnalyticsViewDefinition<SubtreeViewKey>> = [
+    {key: 'pies', title: 'Иерархия пирогов', description: 'Пошаговое раскрытие детей выбранного корня.'},
+    {key: 'table', title: 'Таблица поддерева', description: 'Значение, доли к родителю и главному корню.'}
+];
 
 export function SubtreeResultPanel({result, loading, error, isDirty}: {
     result: SubtreeSliceResultDto | null;
@@ -10,12 +18,16 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
     error: string | null;
     isDirty: boolean;
 }) {
+    const [enabledViews, setEnabledViews] = useState<SubtreeViewKey[]>(['pies', 'table']);
     const [drillPath, setDrillPath] = useState<number[]>([]);
     const [showMissing, setShowMissing] = useState(false);
 
     useEffect(() => {
         setDrillPath([]);
     }, [result?.rootIndicatorYearEntryId]);
+
+    const enabledViewSet = useMemo(() => new Set(enabledViews), [enabledViews]);
+    const toggleView = (view: SubtreeViewKey) => setEnabledViews((current) => current.includes(view) ? current.filter((item) => item !== view) : [...current, view]);
 
     const model = useMemo(() => buildSubtreeModel(result, showMissing), [result, showMissing]);
     const activeRootIds = useMemo(() => {
@@ -48,16 +60,24 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
 
     return (
         <div className="results-stack">
+            <AnalyticsViewSelector
+                title="Представления аналитики: поддерево"
+                views={SUBTREE_VIEWS}
+                enabledSet={enabledViewSet}
+                enabledCount={enabledViews.length}
+                isDirty={isDirty}
+                onToggle={toggleView}
+            />
+
             <section className="panel result-display-selector-panel">
                 <div className="panel-header align-start compact-gap">
                     <div>
-                        <h2>Поддерево показателя</h2>
+                        <h2>Настройки поддерева</h2>
                         <p>Каждый пирог показывает детей текущего корня. Нажатие на сегмент с потомками добавляет
                             следующий уровень ниже.</p>
                     </div>
                     <div className="status-badges">
                         {result && <span className="status-badge">{result.regionName}</span>}
-                        {isDirty && <span className="warning-badge">Параметры сценария изменены</span>}
                     </div>
                 </div>
                 <div className="view-settings-grid analytics-inline-settings-grid">
@@ -73,92 +93,96 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
                 </div>
             </section>
 
-            <Guard loading={loading} error={error} hasData={Boolean(result && result.nodes.length > 0)}
-                   emptyMessage="Поддерево ещё не загружено.">
-                {result && (
-                    <section className="panel chart-panel result-view-panel">
-                        <Header title="Иерархия пирогов"
-                                description="На первом уровне доля считается к выбранному корню; на вложенных уровнях дополнительно сохраняется доля к главному корню."/>
-                        <div className="drill-breadcrumbs">
-                            {activeRootIds.map((rootId, index) => (
-                                <button key={`${rootId}-${index}`} type="button" className="breadcrumb-button"
-                                        onClick={() => resetTo(index)}>
-                                    {truncateLabel(getNodeTitle(result, model.nodeById.get(rootId)), 54)}
-                                </button>
-                            ))}
-                        </div>
-                        <div className="pie-drill-stack">
-                            {activeRootIds.map((rootId, index) => {
-                                const rootNode = model.nodeById.get(rootId);
-                                const children = model.childrenByParent.get(rootId) ?? [];
-                                return (
-                                    <article key={`${rootId}-${index}`} className="pie-drill-panel">
-                                        <div className="chart-subpanel-header">
-                                            <div>
-                                                <h3>{getNodeTitle(result, rootNode)}</h3>
-                                                <p>{children.length > 0 ? 'Показатели на один уровень ниже' : 'У этого узла нет подчиненных показателей'}</p>
+            {enabledViewSet.has('pies') && (
+                <Guard loading={loading} error={error} hasData={Boolean(result && result.nodes.length > 0)}
+                       emptyMessage="Поддерево ещё не загружено.">
+                    {result && (
+                        <section className="panel chart-panel result-view-panel">
+                            <Header title="Иерархия пирогов"
+                                    description="На первом уровне доля считается к выбранному корню; на вложенных уровнях дополнительно сохраняется доля к главному корню."/>
+                            <div className="drill-breadcrumbs">
+                                {activeRootIds.map((rootId, index) => (
+                                    <button key={`${rootId}-${index}`} type="button" className="breadcrumb-button"
+                                            onClick={() => resetTo(index)}>
+                                        {truncateLabel(getNodeTitle(result, model.nodeById.get(rootId)), 54)}
+                                    </button>
+                                ))}
+                            </div>
+                            <div className="pie-drill-stack">
+                                {activeRootIds.map((rootId, index) => {
+                                    const rootNode = model.nodeById.get(rootId);
+                                    const children = model.childrenByParent.get(rootId) ?? [];
+                                    return (
+                                        <article key={`${rootId}-${index}`} className="pie-drill-panel">
+                                            <div className="chart-subpanel-header">
+                                                <div>
+                                                    <h3>{getNodeTitle(result, rootNode)}</h3>
+                                                    <p>{children.length > 0 ? 'Показатели на один уровень ниже' : 'У этого узла нет подчиненных показателей'}</p>
+                                                </div>
+                                                <span>{formatObservationValue(rootNode?.value ?? getRootValue(result))} {result.unitCodeLabel}</span>
                                             </div>
-                                            <span>{formatObservationValue(rootNode?.value ?? getRootValue(result))} {result.unitCodeLabel}</span>
-                                        </div>
-                                        {children.length === 0 ? (
-                                            <div className="empty-state compact-empty-state">Нет дочерних узлов для
-                                                следующего графика.</div>
-                                        ) : (
-                                            <ReactECharts
-                                                style={{height: 440}}
-                                                option={buildPieOption(children, result.unitCodeLabel, index === 0)}
-                                                onEvents={{
-                                                    click: (params: { data?: { nodeId?: number } }) => {
-                                                        const nodeId = params.data?.nodeId;
-                                                        if (nodeId != null) openNode(nodeId);
-                                                    }
-                                                }}
-                                                notMerge
-                                            />
-                                        )}
-                                    </article>
-                                );
-                            })}
-                        </div>
-                    </section>
-                )}
-            </Guard>
-
-            <section className="panel table-panel result-view-panel">
-                <Header title="Таблица поддерева"
-                        description="Контрольная таблица со значением, долей к родителю и долей к главному корню."/>
-                <Guard loading={loading} error={error} hasData={model.nodes.length > 0}
-                       emptyMessage="Нет узлов для таблицы.">
-                    <div className="table-wrapper table-wrapper-scroll subtree-table-scroll">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Путь</th>
-                                <th>Уровень</th>
-                                <th>Значение</th>
-                                <th>Доля к родителю</th>
-                                <th>Доля к главному корню</th>
-                                <th>Есть дети</th>
-                                <th>Missing</th>
-                            </tr>
-                            </thead>
-                            <tbody>
-                            {model.nodes.map((node) => (
-                                <tr key={node.indicatorYearEntryId}>
-                                    <td><span className="table-cell-clamp" title={node.path}>{node.path}</span></td>
-                                    <td>{node.level}</td>
-                                    <td>{formatObservationValue(node.value)}</td>
-                                    <td>{formatPercentValue(node.shareOfParentPercent)}</td>
-                                    <td>{formatPercentValue(node.shareOfRootPercent)}</td>
-                                    <td>{node.hasChildren ? 'Да' : 'Нет'}</td>
-                                    <td>{node.missing ? 'Да' : 'Нет'}</td>
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
+                                            {children.length === 0 ? (
+                                                <div className="empty-state compact-empty-state">Нет дочерних узлов для
+                                                    следующего графика.</div>
+                                            ) : (
+                                                <ReactECharts
+                                                    style={{height: 460}}
+                                                    option={buildPieOption(children, result.unitCodeLabel, index === 0)}
+                                                    onEvents={{
+                                                        click: (params: { data?: { nodeId?: number } }) => {
+                                                            const nodeId = params.data?.nodeId;
+                                                            if (nodeId != null) openNode(nodeId);
+                                                        }
+                                                    }}
+                                                    notMerge
+                                                />
+                                            )}
+                                        </article>
+                                    );
+                                })}
+                            </div>
+                        </section>
+                    )}
                 </Guard>
-            </section>
+            )}
+
+            {enabledViewSet.has('table') && (
+                <section className="panel table-panel result-view-panel">
+                    <Header title="Таблица поддерева"
+                            description="Контрольная таблица со значением, долей к родителю и долей к главному корню."/>
+                    <Guard loading={loading} error={error} hasData={model.nodes.length > 0}
+                           emptyMessage="Нет узлов для таблицы.">
+                        <div className="table-wrapper table-wrapper-scroll subtree-table-scroll">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>Путь</th>
+                                    <th>Уровень</th>
+                                    <th>Значение</th>
+                                    <th>Доля к родителю</th>
+                                    <th>Доля к главному корню</th>
+                                    <th>Есть дети</th>
+                                    <th>Missing</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {model.nodes.map((node) => (
+                                    <tr key={node.indicatorYearEntryId}>
+                                        <td><span className="table-cell-clamp" title={node.path}>{node.path}</span></td>
+                                        <td>{node.level}</td>
+                                        <td>{formatObservationValue(node.value)}</td>
+                                        <td>{formatPercentValue(node.shareOfParentPercent)}</td>
+                                        <td>{formatPercentValue(node.shareOfRootPercent)}</td>
+                                        <td>{node.hasChildren ? 'Да' : 'Нет'}</td>
+                                        <td>{node.missing ? 'Да' : 'Нет'}</td>
+                                    </tr>
+                                ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </Guard>
+                </section>
+            )}
         </div>
     );
 }
@@ -173,11 +197,19 @@ function buildPieOption(children: SubtreeSliceNodeDto[], unitLabel: string, firs
                 return `${data.fullName}<br/>Значение: ${formatObservationValue(data.rawValue)} ${unitLabel}<br/>Доля к текущему корню: ${formatPercentValue(data.shareOfParentPercent)}<br/>Доля к главному корню: ${formatPercentValue(data.shareOfRootPercent)}${data.hasChildren ? '<br/>Нажмите, чтобы раскрыть следующий уровень' : ''}`;
             }
         },
-        legend: {type: 'scroll', orient: 'vertical', right: 0, top: 24, bottom: 24, width: 220},
+        legend: {
+            type: 'scroll',
+            orient: 'vertical',
+            right: 0,
+            top: 24,
+            bottom: 24,
+            width: 240,
+            formatter: (value: string) => wrapChartLabel(value, 28, 3)
+        },
         series: [{
             type: 'pie',
             radius: ['38%', '68%'],
-            center: ['38%', '52%'],
+            center: ['36%', '52%'],
             minAngle: 3,
             avoidLabelOverlap: true,
             label: {
@@ -185,11 +217,11 @@ function buildPieOption(children: SubtreeSliceNodeDto[], unitLabel: string, firs
                     const data = params.data;
                     if (!data) return '';
                     const share = firstLevel ? data.shareOfParentPercent : data.shareOfRootPercent;
-                    return `${truncateLabel(data.fullName, 28)}\n${formatPercentValue(share)}`;
+                    return `${wrapChartLabel(data.fullName, 20, 3)}\n${formatPercentValue(share)}`;
                 }
             },
             data: children.map((node) => ({
-                name: truncateLabel(node.indicatorName, 48),
+                name: truncateLabel(node.indicatorName, 80),
                 fullName: node.indicatorName,
                 value: Math.max(0, node.value ?? 0),
                 rawValue: node.value,
