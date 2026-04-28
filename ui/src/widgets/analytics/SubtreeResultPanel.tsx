@@ -1,7 +1,15 @@
 import type {ReactNode} from 'react';
 import {useEffect, useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, formatPercentValue, truncateLabel, wrapChartLabel} from '../../shared/lib/format';
+import {
+    buildContainedTooltip,
+    buildTooltipHtml,
+    CHART_COLOR_PALETTE,
+    formatObservationValue,
+    formatPercentValue,
+    truncateLabel,
+    wrapChartLabel
+} from '../../shared/lib/format';
 import type {SubtreeSliceNodeDto, SubtreeSliceResultDto} from '../../shared/types/analysis';
 import {type AnalyticsViewDefinition, AnalyticsViewSelector} from './AnalyticsViewSelector';
 
@@ -12,6 +20,10 @@ const SUBTREE_VIEWS: Array<AnalyticsViewDefinition<SubtreeViewKey>> = [
     {key: 'table', title: 'Таблица поддерева', description: 'Значение, доли к родителю и главному корню.'}
 ];
 
+const SUBTREE_TABLE_ROW_HEIGHT = 48;
+const SUBTREE_TABLE_HEIGHT = 520;
+const SUBTREE_TABLE_OVERSCAN = 10;
+
 export function SubtreeResultPanel({result, loading, error, isDirty}: {
     result: SubtreeSliceResultDto | null;
     loading: boolean;
@@ -21,15 +33,21 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
     const [enabledViews, setEnabledViews] = useState<SubtreeViewKey[]>(['pies', 'table']);
     const [drillPath, setDrillPath] = useState<number[]>([]);
     const [showMissing, setShowMissing] = useState(false);
+    const [tableScrollTop, setTableScrollTop] = useState(0);
 
     useEffect(() => {
         setDrillPath([]);
+        setTableScrollTop(0);
     }, [result?.rootIndicatorYearEntryId]);
 
     const enabledViewSet = useMemo(() => new Set(enabledViews), [enabledViews]);
     const toggleView = (view: SubtreeViewKey) => setEnabledViews((current) => current.includes(view) ? current.filter((item) => item !== view) : [...current, view]);
 
     const model = useMemo(() => buildSubtreeModel(result, showMissing), [result, showMissing]);
+    const tableVirtualWindow = useMemo(
+        () => buildVirtualWindow(model.nodes, tableScrollTop, SUBTREE_TABLE_ROW_HEIGHT, SUBTREE_TABLE_HEIGHT, SUBTREE_TABLE_OVERSCAN),
+        [model.nodes, tableScrollTop]
+    );
     const activeRootIds = useMemo(() => {
         if (!result) return [];
         const validPath: number[] = [];
@@ -152,7 +170,16 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
                             description="Контрольная таблица со значением, долей к родителю и долей к главному корню."/>
                     <Guard loading={loading} error={error} hasData={model.nodes.length > 0}
                            emptyMessage="Нет узлов для таблицы.">
-                        <div className="table-wrapper table-wrapper-scroll subtree-table-scroll">
+                        <div className="result-view-summary-row">
+                            <span className="status-badge">Всего строк: {model.nodes.length}</span>
+                            <span
+                                className="status-badge">В области видимости: {tableVirtualWindow.rows.length} строк</span>
+                        </div>
+                        <div
+                            className="table-wrapper table-wrapper-scroll subtree-table-scroll virtual-table-wrapper"
+                            style={{maxHeight: SUBTREE_TABLE_HEIGHT}}
+                            onScroll={(event) => setTableScrollTop(event.currentTarget.scrollTop)}
+                        >
                             <table>
                                 <thead>
                                 <tr>
@@ -166,8 +193,13 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
                                 </tr>
                                 </thead>
                                 <tbody>
-                                {model.nodes.map((node) => (
-                                    <tr key={node.indicatorYearEntryId}>
+                                {tableVirtualWindow.topSpacerHeight > 0 && (
+                                    <tr className="virtual-spacer-row" aria-hidden="true">
+                                        <td colSpan={7} style={{height: tableVirtualWindow.topSpacerHeight}}/>
+                                    </tr>
+                                )}
+                                {tableVirtualWindow.rows.map((node) => (
+                                    <tr key={node.indicatorYearEntryId} style={{height: SUBTREE_TABLE_ROW_HEIGHT}}>
                                         <td><span className="table-cell-clamp" title={node.path}>{node.path}</span></td>
                                         <td>{node.level}</td>
                                         <td>{formatObservationValue(node.value)}</td>
@@ -177,6 +209,11 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
                                         <td>{node.missing ? 'Да' : 'Нет'}</td>
                                     </tr>
                                 ))}
+                                {tableVirtualWindow.bottomSpacerHeight > 0 && (
+                                    <tr className="virtual-spacer-row" aria-hidden="true">
+                                        <td colSpan={7} style={{height: tableVirtualWindow.bottomSpacerHeight}}/>
+                                    </tr>
+                                )}
                                 </tbody>
                             </table>
                         </div>
@@ -189,35 +226,49 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
 
 function buildPieOption(children: SubtreeSliceNodeDto[], unitLabel: string, firstLevel: boolean) {
     return {
-        tooltip: {
+        color: CHART_COLOR_PALETTE,
+        tooltip: buildContainedTooltip({
             trigger: 'item',
             formatter: (params: { data?: PieDatum }) => {
                 const data = params.data;
                 if (!data) return '';
-                return `${data.fullName}<br/>Значение: ${formatObservationValue(data.rawValue)} ${unitLabel}<br/>Доля к текущему корню: ${formatPercentValue(data.shareOfParentPercent)}<br/>Доля к главному корню: ${formatPercentValue(data.shareOfRootPercent)}${data.hasChildren ? '<br/>Нажмите, чтобы раскрыть следующий уровень' : ''}`;
+                const rows: Array<[string, string | number | null | undefined]> = [
+                    ['Значение', `${formatObservationValue(data.rawValue)} ${unitLabel}`],
+                    ['К текущему корню', formatPercentValue(data.shareOfParentPercent)],
+                    ['К главному корню', formatPercentValue(data.shareOfRootPercent)]
+                ];
+                if (data.hasChildren) {
+                    rows.push(['Действие', 'Нажмите, чтобы раскрыть следующий уровень']);
+                }
+                return buildTooltipHtml(data.fullName, rows);
             }
-        },
+        }),
         legend: {
             type: 'scroll',
             orient: 'vertical',
             right: 0,
             top: 24,
             bottom: 24,
-            width: 240,
-            formatter: (value: string) => wrapChartLabel(value, 28, 3)
+            width: 260,
+            formatter: (value: string) => wrapChartLabel(value, 26, 3),
+            textStyle: {lineHeight: 15}
         },
         series: [{
             type: 'pie',
-            radius: ['38%', '68%'],
-            center: ['36%', '52%'],
-            minAngle: 3,
+            radius: ['36%', '64%'],
+            center: ['34%', '52%'],
+            minAngle: 4,
             avoidLabelOverlap: true,
+            labelLayout: {hideOverlap: true},
             label: {
+                width: 150,
+                overflow: 'break',
+                lineHeight: 15,
                 formatter: (params: { data?: PieDatum }) => {
                     const data = params.data;
                     if (!data) return '';
                     const share = firstLevel ? data.shareOfParentPercent : data.shareOfRootPercent;
-                    return `${wrapChartLabel(data.fullName, 20, 3)}\n${formatPercentValue(share)}`;
+                    return `${wrapChartLabel(data.fullName, 18, 2)}\n${formatPercentValue(share)}`;
                 }
             },
             data: children.map((node) => ({
@@ -242,6 +293,19 @@ type PieDatum = {
     shareOfParentPercent: number | null;
     shareOfRootPercent: number | null;
 };
+
+function buildVirtualWindow<T>(items: T[], scrollTop: number, rowHeight: number, viewportHeight: number, overscan: number) {
+    const visibleCount = Math.ceil(viewportHeight / rowHeight);
+    const startIndex = Math.max(0, Math.floor(scrollTop / rowHeight) - overscan);
+    const endIndex = Math.min(items.length, startIndex + visibleCount + overscan * 2);
+    const rows = items.slice(startIndex, endIndex);
+
+    return {
+        rows,
+        topSpacerHeight: startIndex * rowHeight,
+        bottomSpacerHeight: Math.max(0, (items.length - endIndex) * rowHeight)
+    };
+}
 
 function buildSubtreeModel(result: SubtreeSliceResultDto | null, showMissing: boolean) {
     const nodes = (result?.nodes ?? []).filter((node) => showMissing || !node.missing);

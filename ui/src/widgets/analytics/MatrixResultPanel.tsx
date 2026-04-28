@@ -1,7 +1,14 @@
 import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, truncateLabel, wrapChartLabel} from '../../shared/lib/format';
+import {
+    buildContainedTooltip,
+    buildTooltipHtml,
+    CHART_COLOR_PALETTE,
+    formatObservationValue,
+    truncateLabel,
+    wrapChartLabel
+} from '../../shared/lib/format';
 import type {PopulationByRegion} from '../../shared/lib/population';
 import {countKnownPopulation} from '../../shared/lib/population';
 import type {
@@ -98,8 +105,7 @@ export function MatrixResultPanel({result, loading, error, isDirty, populationBy
                     <div>
                         <h2>Настройки матрицы</h2>
                         <p>Сначала показаны исходные значения, затем значения с учетом населения, после этого —
-                            нормализация
-                            по каждому показателю.</p>
+                            нормализация по каждому показателю.</p>
                     </div>
                     <div className="status-badges">
                         {result && <span className="status-badge">{result.valueKindLabel}</span>}
@@ -379,24 +385,41 @@ function buildHeatmapOption(matrix: MatrixModel, showCellLabels: boolean, normal
     ]);
 
     return {
-        tooltip: {
-            position: 'top',
+        color: CHART_COLOR_PALETTE,
+        tooltip: buildContainedTooltip({
             formatter: (params: { value: [number, number, number | null] }) => {
                 const [columnIndex, rowIndex, value] = params.value;
-                return `${matrix.rows[rowIndex]?.regionName ?? ''}<br/>${matrix.columns[columnIndex]?.indicatorName ?? ''}<br/>${formatObservationValue(value)} ${matrix.unitLabel}`;
+                return buildTooltipHtml(matrix.rows[rowIndex]?.regionName ?? '', [
+                    ['Показатель', matrix.columns[columnIndex]?.indicatorName ?? '—'],
+                    ['Значение', `${formatObservationValue(value)} ${matrix.unitLabel}`]
+                ]);
             }
-        },
-        grid: {left: 230, right: 56, top: 150, bottom: 62},
+        }),
+        grid: {left: 250, right: 68, top: 50, bottom: 170},
         xAxis: {
             type: 'category',
             data: matrix.columns.map((column) => column.indicatorName),
-            axisLabel: {interval: 0, rotate: 0, width: 130, formatter: (value: string) => wrapChartLabel(value, 16, 4)}
+            axisLabel: {
+                interval: 0,
+                margin: 25,
+                rotate: 45,
+                width: 145,
+                lineHeight: 14,
+                overflow: 'break',
+                formatter: (value: string) => wrapChartLabel(value, 15, 3)
+            }
         },
         yAxis: {
             type: 'category',
             inverse: true,
             data: matrix.rows.map((row) => row.regionName),
-            axisLabel: {width: 205, formatter: (value: string) => wrapChartLabel(value, 23, 3)}
+            axisLabel: {
+                interval: 0,
+                width: 225,
+                lineHeight: 15,
+                overflow: 'break',
+                formatter: (value: string) => wrapChartLabel(value, 24, 3)
+            }
         },
         visualMap: {
             min,
@@ -404,7 +427,9 @@ function buildHeatmapOption(matrix: MatrixModel, showCellLabels: boolean, normal
             calculable: true,
             orient: 'horizontal',
             left: 'center',
-            bottom: 0
+            bottom: 0,
+            inRange: {color: ['#eff6ff', '#93c5fd', '#2563eb', '#1e3a8a']},
+            outOfRange: {color: ['#e2e8f0']}
         },
         series: [{
             type: 'heatmap',

@@ -1,7 +1,14 @@
 import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, formatPercentValue, wrapChartLabel} from '../../shared/lib/format';
+import {
+    buildContainedTooltip,
+    buildTooltipHtml,
+    CHART_COLOR_PALETTE,
+    formatObservationValue,
+    formatPercentValue,
+    wrapChartLabel
+} from '../../shared/lib/format';
 import type {PopulationByRegion} from '../../shared/lib/population';
 import {countKnownPopulation} from '../../shared/lib/population';
 import type {RegionComparisonItemDto, RegionComparisonResultDto} from '../../shared/types/analysis';
@@ -217,21 +224,31 @@ export function ComparisonResultPanel({result, loading, error, isDirty, populati
 
 function buildCombinedRankingOption(items: RegionComparisonItemDto[], unitLabel: string) {
     return {
-        tooltip: {
+        color: CHART_COLOR_PALETTE,
+        tooltip: buildContainedTooltip({
             trigger: 'axis',
             axisPointer: {type: 'shadow'},
             formatter: (params: Array<{ dataIndex: number; value: number }>) => {
                 const item = items[params[0]?.dataIndex ?? 0];
-                return `${item.regionName}<br/>Значение: ${formatObservationValue(item.value)} ${unitLabel}<br/>Доля: ${formatPercentValue(item.shareOfTotalPercent)}`;
+                return buildTooltipHtml(item.regionName, [
+                    ['Значение', `${formatObservationValue(item.value)} ${unitLabel}`],
+                    ['Доля', formatPercentValue(item.shareOfTotalPercent)]
+                ]);
             }
-        },
-        grid: {left: 270, right: 180, top: 28, bottom: 36},
+        }),
+        grid: {left: 285, right: 190, top: 28, bottom: 36},
         xAxis: {type: 'value', axisLabel: {formatter: (value: number) => formatObservationValue(value)}},
         yAxis: {
             type: 'category',
             inverse: true,
             data: items.map((item) => item.regionName),
-            axisLabel: {width: 240, formatter: (value: string) => wrapChartLabel(value, 24, 3)}
+            axisLabel: {
+                interval: 0,
+                width: 255,
+                lineHeight: 15,
+                overflow: 'break',
+                formatter: (value: string) => wrapChartLabel(value, 25, 3)
+            }
         },
         dataZoom: items.length > 18 ? [
             {type: 'slider', yAxisIndex: 0, right: 4, width: 12, start: 0, end: Math.min(100, 18 / items.length * 100)},
@@ -259,21 +276,31 @@ function buildPerCapitaOption(items: Array<RegionComparisonItemDto & {
 }>, unitLabel: string) {
     const sorted = [...items].sort((left, right) => (right.perCapitaValue ?? Number.NEGATIVE_INFINITY) - (left.perCapitaValue ?? Number.NEGATIVE_INFINITY));
     return {
-        tooltip: {
+        color: CHART_COLOR_PALETTE,
+        tooltip: buildContainedTooltip({
             trigger: 'axis',
             axisPointer: {type: 'shadow'},
             formatter: (params: Array<{ dataIndex: number }>) => {
                 const item = sorted[params[0]?.dataIndex ?? 0];
-                return `${item.regionName}<br/>На человека: ${formatObservationValue(item.perCapitaValue)} ${unitLabel}/чел.<br/>Население: ${formatObservationValue(item.population)}`;
+                return buildTooltipHtml(item.regionName, [
+                    ['На человека', `${formatObservationValue(item.perCapitaValue)} ${unitLabel}/чел.`],
+                    ['Население', formatObservationValue(item.population)]
+                ]);
             }
-        },
-        grid: {left: 270, right: 130, top: 28, bottom: 36},
+        }),
+        grid: {left: 285, right: 140, top: 28, bottom: 36},
         xAxis: {type: 'value', axisLabel: {formatter: (value: number) => formatObservationValue(value)}},
         yAxis: {
             type: 'category',
             inverse: true,
             data: sorted.map((item) => item.regionName),
-            axisLabel: {width: 240, formatter: (value: string) => wrapChartLabel(value, 24, 3)}
+            axisLabel: {
+                interval: 0,
+                width: 255,
+                lineHeight: 15,
+                overflow: 'break',
+                formatter: (value: string) => wrapChartLabel(value, 25, 3)
+            }
         },
         dataZoom: sorted.length > 18 ? [
             {

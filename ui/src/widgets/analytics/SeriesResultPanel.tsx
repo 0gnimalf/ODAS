@@ -1,7 +1,14 @@
 import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, formatPercentValue, wrapChartLabel} from '../../shared/lib/format';
+import {
+    buildContainedTooltip,
+    buildTooltipHtml,
+    CHART_COLOR_PALETTE,
+    formatObservationValue,
+    formatPercentValue,
+    wrapChartLabel
+} from '../../shared/lib/format';
 import type {MonthlySeriesResultDto, PeriodGrowthMetricsResultDto} from '../../shared/types/analysis';
 
 type ViewKey = 'cumulative' | 'nonCumulative' | 'quarters' | 'growth' | 'seriesTable' | 'quarterTable' | 'tech';
@@ -43,15 +50,31 @@ export function SeriesResultPanel({seriesResult, growthResult, loading, error, i
             <Guard loading={loading} error={error} hasData={Boolean(seriesResult?.points.length)}
                    emptyMessage="Ряд ещё не загружен.">
                 <ReactECharts style={{height: 420}} option={{
-                    tooltip: {trigger: 'axis'},
-                    grid: {left: 56, right: 24, top: 24, bottom: 48},
+                    color: CHART_COLOR_PALETTE,
+                    tooltip: buildContainedTooltip({
+                        trigger: 'axis',
+                        formatter: (params: Array<{
+                            axisValue?: string;
+                            value: number;
+                            seriesName?: string
+                        }>) => buildTooltipHtml(
+                            params[0]?.axisValue ?? '',
+                            params.map((item) => [item.seriesName ?? 'Накопленное значение', formatObservationValue(item.value)])
+                        )
+                    }),
+                    grid: {left: 72, right: 36, top: 28, bottom: 56},
                     xAxis: {
                         type: 'category',
                         data: seriesResult?.points.map((p) => p.periodLabel) ?? [],
-                        axisLabel: {formatter: (value: string) => wrapChartLabel(value, 12, 2)}
+                        axisLabel: {
+                            interval: 0,
+                            lineHeight: 14,
+                            formatter: (value: string) => wrapChartLabel(value, 12, 2)
+                        }
                     },
                     yAxis: {type: 'value'},
                     series: [{
+                        name: 'Накопленное значение',
                         type: 'line',
                         label: showLabels ? {
                             show: true,
@@ -68,15 +91,31 @@ export function SeriesResultPanel({seriesResult, growthResult, loading, error, i
             <Guard loading={loading} error={error} hasData={Boolean(seriesResult?.points.length)}
                    emptyMessage="Ряд ещё не загружен.">
                 <ReactECharts style={{height: 380}} option={{
-                    tooltip: {trigger: 'axis'},
-                    grid: {left: 56, right: 24, top: 24, bottom: 48},
+                    color: CHART_COLOR_PALETTE,
+                    tooltip: buildContainedTooltip({
+                        trigger: 'axis',
+                        formatter: (params: Array<{
+                            axisValue?: string;
+                            value: number;
+                            seriesName?: string
+                        }>) => buildTooltipHtml(
+                            params[0]?.axisValue ?? '',
+                            params.map((item) => [item.seriesName ?? 'Чистое значение', formatObservationValue(item.value)])
+                        )
+                    }),
+                    grid: {left: 72, right: 36, top: 28, bottom: 56},
                     xAxis: {
                         type: 'category',
                         data: seriesResult?.points.map((p) => p.periodLabel) ?? [],
-                        axisLabel: {formatter: (value: string) => wrapChartLabel(value, 12, 2)}
+                        axisLabel: {
+                            interval: 0,
+                            lineHeight: 14,
+                            formatter: (value: string) => wrapChartLabel(value, 12, 2)
+                        }
                     },
                     yAxis: {type: 'value'},
                     series: [{
+                        name: 'Чистое значение',
                         type: 'bar',
                         label: showLabels ? {
                             show: true,
@@ -96,15 +135,31 @@ export function SeriesResultPanel({seriesResult, growthResult, loading, error, i
             <Guard loading={loading} error={error} hasData={quarterRows.length > 0}
                    emptyMessage="Квартальные агрегаты недоступны.">
                 <ReactECharts style={{height: 360}} option={{
-                    tooltip: {trigger: 'axis'},
-                    grid: {left: 56, right: 24, top: 24, bottom: 48},
+                    color: CHART_COLOR_PALETTE,
+                    tooltip: buildContainedTooltip({
+                        trigger: 'axis',
+                        formatter: (params: Array<{
+                            axisValue?: string;
+                            value: number;
+                            seriesName?: string
+                        }>) => buildTooltipHtml(
+                            params[0]?.axisValue ?? '',
+                            params.map((item) => [item.seriesName ?? 'Квартальный агрегат', formatObservationValue(item.value)])
+                        )
+                    }),
+                    grid: {left: 72, right: 36, top: 28, bottom: 56},
                     xAxis: {
                         type: 'category',
                         data: quarterRows.map((q) => q.label),
-                        axisLabel: {formatter: (value: string) => wrapChartLabel(value, 12, 2)}
+                        axisLabel: {
+                            interval: 0,
+                            lineHeight: 14,
+                            formatter: (value: string) => wrapChartLabel(value, 12, 2)
+                        }
                     },
                     yAxis: {type: 'value'},
                     series: [{
+                        name: 'Квартальный агрегат',
                         type: 'bar',
                         label: {
                             show: true,

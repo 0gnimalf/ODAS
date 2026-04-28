@@ -1,6 +1,13 @@
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
-import {formatObservationValue, truncateLabel, wrapChartLabel} from '../../shared/lib/format';
+import {
+    buildContainedTooltip,
+    buildTooltipHtml,
+    CHART_COLOR_PALETTE,
+    formatObservationValue,
+    truncateLabel,
+    wrapChartLabel
+} from '../../shared/lib/format';
 import type {ObservationReadDto, ObservationReadResultDto} from '../../shared/types/read';
 
 interface RegionCompareBarChartProps {
@@ -116,19 +123,38 @@ export function RegionCompareBarChart({result, loading, error, isDirty}: RegionC
 function buildOption(group: ReturnType<typeof buildChartGroups>[number], showLabels: boolean) {
     const seriesNames = group.series.map((series) => series.name);
     return {
-        tooltip: {
+        color: CHART_COLOR_PALETTE,
+        tooltip: buildContainedTooltip({
             trigger: 'axis',
             axisPointer: {type: 'shadow'},
-            valueFormatter: (value: number | string) => typeof value === 'number' ? `${formatObservationValue(value)} ${group.unitSuffix}` : String(value)
+            formatter: (params: Array<{ seriesName: string; value: number | null; axisValue?: string }>) => {
+                const regionName = params[0]?.axisValue ?? '';
+                return buildTooltipHtml(regionName, params.map((item) => [
+                    item.seriesName,
+                    item.value == null ? '—' : `${formatObservationValue(item.value)} ${group.unitSuffix}`
+                ]));
+            }
+        }),
+        legend: {
+            top: 0,
+            type: 'scroll',
+            data: seriesNames,
+            formatter: (value: string) => wrapChartLabel(value, 26, 2),
+            textStyle: {lineHeight: 15}
         },
-        legend: {top: 0, type: 'scroll', data: seriesNames, formatter: (value: string) => wrapChartLabel(value, 28, 2)},
-        grid: {left: 260, right: showLabels ? 140 : 36, top: 70, bottom: 36, containLabel: false},
+        grid: {left: 280, right: showLabels ? 150 : 42, top: 78, bottom: 36, containLabel: false},
         xAxis: {type: 'value', axisLabel: {formatter: (value: number) => formatObservationValue(value)}},
         yAxis: {
             type: 'category',
             inverse: true,
             data: group.regionNames,
-            axisLabel: {width: 230, formatter: (value: string) => wrapChartLabel(value, 24, 3)}
+            axisLabel: {
+                interval: 0,
+                width: 250,
+                lineHeight: 15,
+                overflow: 'break',
+                formatter: (value: string) => wrapChartLabel(value, 25, 3)
+            }
         },
         dataZoom: group.regionNames.length > 18 ? [
             {

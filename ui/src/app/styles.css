@@ -1023,3 +1023,19 @@ th.sticky-first-column {
     padding: 0 !important;
     border: 0 !important;
 }
+
+.subtree-table-scroll.virtual-table-wrapper {
+    max-height: 520px;
+}
+
+.subtree-table-scroll.virtual-table-wrapper tbody tr:not(.virtual-spacer-row) {
+    height: 48px;
+}
+
+.subtree-table-scroll .table-cell-clamp {
+    max-width: 680px;
+}
+
+.echarts-for-react {
+    min-width: 0;
+}
