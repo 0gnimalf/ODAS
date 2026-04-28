@@ -211,6 +211,10 @@ public class ReferenceSyncService implements ReferenceSyncUseCase {
 
                 EntryIdentity identity = new EntryIdentity(indicator.id(), parentId);
                 IndicatorYearEntry existing = existingEntries.get(identity);
+                if (existing == null) {
+                    existing = findReparentedExistingEntry(existingEntries.values(), indicator.id(), row.level(), row.sortOrder())
+                            .orElse(null);
+                }
                 IndicatorYearEntry entry = new IndicatorYearEntry(
                         existing == null ? null : existing.id(),
                         yearPeriod.id(),
@@ -234,10 +238,24 @@ public class ReferenceSyncService implements ReferenceSyncUseCase {
                 IndicatorYearEntry saved = savedEntries.get(i);
                 ExternalIndicatorRow row = correspondingRows.get(i);
                 entryByNaturalKey.put(row.naturalKey(), saved);
+                existingEntries.entrySet().removeIf(entry -> Objects.equals(entry.getValue().id(), saved.id()));
                 existingEntries.put(new EntryIdentity(saved.indicatorId(), saved.parentIndicatorYearEntryId()), saved);
             }
         }
         return new ReferenceSyncResultDto(rows.size(), created, updated, skipped);
+    }
+
+    private Optional<IndicatorYearEntry> findReparentedExistingEntry(
+            Collection<IndicatorYearEntry> existingEntries,
+            Long indicatorId,
+            int newLevel,
+            int sortOrder
+    ) {
+        return existingEntries.stream()
+                .filter(entry -> Objects.equals(entry.indicatorId(), indicatorId))
+                .filter(entry -> entry.level() == newLevel - 1)
+                .filter(entry -> entry.sortOrder() == sortOrder)
+                .findFirst();
     }
 
     private void validateUniqueNaturalKeys(List<ExternalIndicatorRow> rows) {

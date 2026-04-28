@@ -100,7 +100,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     "income",
                     null,
                     null,
-                    requestedPeriod
+                    requestedPeriod,
+                    true
             );
             case OUTCOME -> collectOutcomeIndicators(requestedPeriod);
             case CREDIT -> collectCreditIndicators();
@@ -110,7 +111,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     "fin-source",
                     null,
                     null,
-                    requestedPeriod
+                    requestedPeriod,
+                    false
             );
             case OTHER -> collectPopulationIndicators();
         };
@@ -132,7 +134,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     null,
                     null,
                     requestedPeriod,
-                    regions
+                    regions,
+                    true
             );
             case OUTCOME -> collectOutcomeObservationPayloads(requestedPeriod, regions);
             case CREDIT -> collectCreditObservationPayloads(requestedPeriod, regions);
@@ -143,7 +146,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     null,
                     null,
                     requestedPeriod,
-                    regions
+                    regions,
+                    false
             );
             case OTHER -> List.of();
         };
@@ -180,7 +184,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     spec.namespace(),
                     spec.serviceRootName(),
                     spec.value(),
-                    requestedPeriod
+                    requestedPeriod,
+                    true
             ));
         }
         return result;
@@ -197,7 +202,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     spec.serviceRootName(),
                     spec.value(),
                     requestedPeriod,
-                    regions
+                    regions,
+                    true
             ));
         }
         return result;
@@ -209,7 +215,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String namespace,
             String serviceRootName,
             Integer outcomesType,
-            String requestedPeriod
+            String requestedPeriod,
+            boolean useFirstRootAsAggregateParent
     ) {
         return collectMergedDetailIndicators(
                 discoveryService.discover(page),
@@ -217,7 +224,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                 namespace,
                 serviceRootName,
                 outcomesType,
-                requestedPeriod
+                requestedPeriod,
+                useFirstRootAsAggregateParent
         );
     }
 
@@ -227,7 +235,8 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String namespace,
             String serviceRootName,
             Integer outcomesType,
-            String requestedPeriod
+            String requestedPeriod,
+            boolean useFirstRootAsAggregateParent
     ) {
         String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
         List<ExternalRegionRow> regions = collectRegions();
@@ -239,9 +248,12 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     requestedPeriod,
                     outcomesType
             );
-            return indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows()).stream()
-                    .map(row -> applyServiceRoot(row, namespace, serviceRootName))
-                    .toList();
+            return prepareDetailTreeRows(
+                    namespace,
+                    serviceRootName,
+                    useFirstRootAsAggregateParent,
+                    indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows())
+            );
         });
 
         return mergeIndicatorTrees(groupCode, namespace, serviceRootName, regionTrees);
@@ -254,9 +266,19 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String serviceRootName,
             Integer outcomesType,
             String requestedPeriod,
-            Collection<ExternalRegionRef> regions
+            Collection<ExternalRegionRef> regions,
+            boolean useFirstRootAsAggregateParent
     ) {
-        return collectDetailObservationPayloads(discoveryService.discover(page), groupCode, namespace, serviceRootName, outcomesType, requestedPeriod, regions);
+        return collectDetailObservationPayloads(
+                discoveryService.discover(page),
+                groupCode,
+                namespace,
+                serviceRootName,
+                outcomesType,
+                requestedPeriod,
+                regions,
+                useFirstRootAsAggregateParent
+        );
     }
 
     private List<ExternalDatasetPayload> collectDetailObservationPayloads(
@@ -266,14 +288,18 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
             String serviceRootName,
             Integer outcomesType,
             String requestedPeriod,
-            Collection<ExternalRegionRef> regions
+            Collection<ExternalRegionRef> regions,
+            boolean useFirstRootAsAggregateParent
     ) {
         String dataSourceCode = reportDataLoader.resolveDetailDataSourceCode(report, requestedPeriod);
         return mapInParallel(regions, region -> {
             IminfinLoadedData loaded = reportDataLoader.loadDetailData(report, dataSourceCode, region.externalCode(), requestedPeriod, outcomesType);
-            List<IminfinParsedIndicatorRow> parsedRows = indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows()).stream()
-                    .map(row -> applyServiceRoot(row, namespace, serviceRootName))
-                    .toList();
+            List<IminfinParsedIndicatorRow> parsedRows = prepareDetailTreeRows(
+                    namespace,
+                    serviceRootName,
+                    useFirstRootAsAggregateParent,
+                    indicatorTreeParser.parseDetailRows(namespace, loaded.dataSource(), loaded.dataRows())
+            );
             List<ExternalObservationRow> observations = observationMapper.mapDetailObservations(
                     region.externalCode(),
                     groupCode,
@@ -302,6 +328,110 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                 row.hasChildren(),
                 row.row()
         );
+    }
+
+    private List<IminfinParsedIndicatorRow> prepareDetailTreeRows(
+            String namespace,
+            String serviceRootName,
+            boolean useFirstRootAsAggregateParent,
+            List<IminfinParsedIndicatorRow> rows
+    ) {
+        List<IminfinParsedIndicatorRow> prepared = useFirstRootAsAggregateParent
+                ? reparentTopLevelRowsToFirstRoot(rows)
+                : rows;
+        return prepared.stream()
+                .map(row -> applyServiceRoot(row, namespace, serviceRootName))
+                .toList();
+    }
+
+    private List<IminfinParsedIndicatorRow> reparentTopLevelRowsToFirstRoot(List<IminfinParsedIndicatorRow> rows) {
+        if (rows == null || rows.size() < 2) {
+            return rows == null ? List.of() : rows;
+        }
+
+        IminfinParsedIndicatorRow aggregateRoot = rows.stream()
+                .filter(this::isSourceTopLevelRoot)
+                .findFirst()
+                .orElse(null);
+        if (aggregateRoot == null) {
+            return rows;
+        }
+
+        List<IminfinParsedIndicatorRow> adjusted = new ArrayList<>(rows.size());
+        boolean shiftCurrentSiblingSubtree = false;
+        boolean changed = false;
+
+        for (IminfinParsedIndicatorRow row : rows) {
+            if (row == null) {
+                continue;
+            }
+
+            if (row == aggregateRoot) {
+                shiftCurrentSiblingSubtree = false;
+                adjusted.add(row);
+                continue;
+            }
+
+            if (isSourceTopLevelRoot(row)) {
+                shiftCurrentSiblingSubtree = true;
+                changed = true;
+                adjusted.add(new IminfinParsedIndicatorRow(
+                        row.naturalKey(),
+                        aggregateRoot.naturalKey(),
+                        row.name(),
+                        aggregateRoot.name(),
+                        row.level() + 1,
+                        row.sortOrder(),
+                        row.hasChildren(),
+                        row.row()
+                ));
+                continue;
+            }
+
+            if (shiftCurrentSiblingSubtree) {
+                changed = true;
+                adjusted.add(new IminfinParsedIndicatorRow(
+                        row.naturalKey(),
+                        row.parentNaturalKey(),
+                        row.name(),
+                        row.parentName(),
+                        row.level() + 1,
+                        row.sortOrder(),
+                        row.hasChildren(),
+                        row.row()
+                ));
+            } else {
+                adjusted.add(row);
+            }
+        }
+
+        return changed ? refreshHasChildren(adjusted) : rows;
+    }
+
+    private boolean isSourceTopLevelRoot(IminfinParsedIndicatorRow row) {
+        return row != null
+                && row.level() == 0
+                && (row.parentNaturalKey() == null || row.parentNaturalKey().isBlank());
+    }
+
+    private List<IminfinParsedIndicatorRow> refreshHasChildren(List<IminfinParsedIndicatorRow> rows) {
+        Set<String> parentKeys = rows.stream()
+                .map(IminfinParsedIndicatorRow::parentNaturalKey)
+                .filter(Objects::nonNull)
+                .filter(parentKey -> !parentKey.isBlank())
+                .collect(HashSet::new, Set::add, Set::addAll);
+        return rows.stream()
+                .map(row -> new IminfinParsedIndicatorRow(
+                        row.naturalKey(),
+                        row.parentNaturalKey(),
+                        row.name(),
+                        row.parentName(),
+                        row.level(),
+                        row.sortOrder(),
+                        parentKeys.contains(row.naturalKey()),
+                        row.row()
+                ))
+                .toList();
     }
 
     private List<ExternalIndicatorRow> mergeIndicatorTrees(
