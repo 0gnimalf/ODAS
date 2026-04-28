@@ -42,8 +42,8 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
         label: 'Вид значения',
         render: (observation) => truncateLabel(observation.valueKindLabel, 52)
     },
-    {key: 'unitCodeLabel', label: 'Ед. изм.', render: (observation) => observation.unitCodeLabel},
     {key: 'value', label: 'Значение', render: (observation) => formatObservationValue(observation.value)},
+    {key: 'unitCodeLabel', label: 'Ед. изм.', render: (observation) => observation.unitCodeLabel},
     {key: 'datasetCollectionId', label: 'Dataset', render: (observation) => observation.datasetCollectionId}
 ];
 
@@ -57,7 +57,7 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
     const [searchText, setSearchText] = useState('');
     const [valueKindFilter, setValueKindFilter] = useState('');
     const [unitCodeFilter, setUnitCodeFilter] = useState('');
-    const [visibleRowLimit, setVisibleRowLimit] = useState(20);
+    const [visibleRowLimit, setVisibleRowLimit] = useState(10);
 
     const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
 
@@ -95,7 +95,7 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
     }, [result, searchText, valueKindFilter, unitCodeFilter, sortBy, sortDirection]);
 
     const visibleColumnDefinitions = COLUMN_DEFINITIONS.filter((column) => visibleColumnSet.has(column.key));
-    const tableMaxHeight = Math.max(8, visibleRowLimit) * 44 + 48;
+    const tableMaxHeight = Math.max(1, visibleRowLimit) * 44 + 48;
 
     const toggleColumn = (columnKey: TableColumnKey) => {
         setVisibleColumns((current) => current.includes(columnKey)

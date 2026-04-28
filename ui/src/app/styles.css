@@ -618,7 +618,7 @@ button:disabled {
 }
 
 .table-settings-grid {
-    grid-template-columns: 1.4fr 1fr 1fr 140px 1fr 150px;
+    grid-template-columns: 1.4fr 1fr 0.5fr 0.3fr 0.7fr 0.7fr;
 }
 
 .column-toggle-row {
@@ -865,7 +865,7 @@ th.sticky-first-column {
 
 .analytics-shared-top-grid {
     display: grid;
-    grid-template-columns: minmax(170px, 1fr) 120px 150px minmax(240px, 1.4fr);
+    grid-template-columns: 1fr 0.3fr 0.4fr 1.5fr;
     gap: 12px;
     margin-bottom: 14px;
 }
