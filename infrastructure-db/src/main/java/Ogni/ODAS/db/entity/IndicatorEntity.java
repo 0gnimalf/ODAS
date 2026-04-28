@@ -24,7 +24,7 @@ public class IndicatorEntity {
     @SequenceGenerator(name = "indicator_seq_gen", sequenceName = "indicator_seq", allocationSize = 1)
     private Long id;
 
-    @Column(name = "name", nullable = false, length = 1000)
+    @Column(name = "name", nullable = false, length = 2000)
     private String name;
 
     @Enumerated(EnumType.STRING)

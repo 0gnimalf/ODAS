@@ -31,7 +31,8 @@ public class ReferenceSyncService implements ReferenceSyncUseCase {
             IndicatorGroupCode.INCOME,
             IndicatorGroupCode.OUTCOME,
             IndicatorGroupCode.CREDIT,
-            IndicatorGroupCode.FIN_SOURCE
+            IndicatorGroupCode.FIN_SOURCE,
+            IndicatorGroupCode.OTHER
     );
 
     private final ExternalRegionCollectorPort regionCollector;

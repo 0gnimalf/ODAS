@@ -5,6 +5,7 @@ import Ogni.ODAS.application.port.in.ReferenceSyncUseCase;
 import Ogni.ODAS.application.port.in.StoredDataReadUseCase;
 import Ogni.ODAS.application.port.out.collector.ExternalIndicatorCollectorPort;
 import Ogni.ODAS.application.port.out.collector.ExternalObservationCollectorPort;
+import Ogni.ODAS.application.port.out.collector.ExternalPopulationCollectorPort;
 import Ogni.ODAS.application.port.out.collector.ExternalRegionCollectorPort;
 import Ogni.ODAS.application.port.out.persistence.*;
 import Ogni.ODAS.application.service.ObservationCollectionService;
@@ -48,6 +49,7 @@ public class ApplicationUseCaseConfiguration {
     public ObservationCollectionUseCase observationCollectionUseCase(
             ReferenceSyncUseCase referenceSyncUseCase,
             ExternalObservationCollectorPort observationCollector,
+            ExternalPopulationCollectorPort populationCollector,
             RegionPersistencePort regionPersistence,
             PeriodPersistencePort periodPersistence,
             IndicatorPersistencePort indicatorPersistence,
@@ -59,6 +61,7 @@ public class ApplicationUseCaseConfiguration {
         return new ObservationCollectionService(
                 referenceSyncUseCase,
                 observationCollector,
+                populationCollector,
                 regionPersistence,
                 periodPersistence,
                 indicatorPersistence,

@@ -3,6 +3,7 @@ package Ogni.ODAS.iminfin.collector;
 import Ogni.ODAS.application.dto.*;
 import Ogni.ODAS.application.port.out.collector.ExternalIndicatorCollectorPort;
 import Ogni.ODAS.application.port.out.collector.ExternalObservationCollectorPort;
+import Ogni.ODAS.application.port.out.collector.ExternalPopulationCollectorPort;
 import Ogni.ODAS.application.port.out.collector.ExternalRegionCollectorPort;
 import Ogni.ODAS.application.support.TextNormalizer;
 import Ogni.ODAS.domain.enumtype.IndicatorGroupCode;
@@ -30,7 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Function;
 
-public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIndicatorCollectorPort, ExternalObservationCollectorPort {
+public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIndicatorCollectorPort, ExternalObservationCollectorPort, ExternalPopulationCollectorPort {
 
     private static final String TERRITORY_DATA_SOURCE = "TerritoryOnlySubject";
     private static final String TERRITORY_PERIOD_PARAMETER = "TERRITORIES_paramPeriod";
@@ -45,6 +46,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
     private final IminfinReportDataLoader reportDataLoader;
     private final IminfinIndicatorTreeParser indicatorTreeParser;
     private final IminfinObservationMapper observationMapper;
+    private final IminfinPopulationCollector populationCollector;
 
     public IminfinCollector() {
         this(IminfinCollectorProperties.defaults());
@@ -57,6 +59,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
         this.reportDataLoader = new IminfinReportDataLoader(discoveryService, httpClient);
         this.indicatorTreeParser = new IminfinIndicatorTreeParser();
         this.observationMapper = new IminfinObservationMapper();
+        this.populationCollector = new IminfinPopulationCollector(this.discoveryService, this.reportDataLoader);
     }
 
     @Override
@@ -109,7 +112,7 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     null,
                     requestedPeriod
             );
-            default -> throw new IllegalStateException("Unsupported indicator group: " + groupCode);
+            case OTHER -> collectPopulationIndicators();
         };
     }
 
@@ -142,8 +145,29 @@ public class IminfinCollector implements ExternalRegionCollectorPort, ExternalIn
                     requestedPeriod,
                     regions
             );
-            default -> throw new IllegalStateException("Unsupported indicator group: " + groupCode);
+            case OTHER -> List.of();
         };
+    }
+
+    @Override
+    public List<ExternalDatasetPayload> collectPopulationObservations(
+            int year,
+            Collection<ExternalRegionRef> regions
+    ) {
+        return populationCollector.collectPopulationObservations(year, regions);
+    }
+
+
+    private List<ExternalIndicatorRow> collectPopulationIndicators() {
+        return List.of(new ExternalIndicatorRow(
+                IndicatorGroupCode.OTHER,
+                "population",
+                IminfinPopulationCollector.POPULATION_INDICATOR_NAME,
+                null,
+                0,
+                1,
+                false
+        ));
     }
 
     private List<ExternalIndicatorRow> collectOutcomeIndicators(String requestedPeriod) {

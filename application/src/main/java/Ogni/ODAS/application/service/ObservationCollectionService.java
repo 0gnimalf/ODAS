@@ -9,6 +9,7 @@ import Ogni.ODAS.application.dto.ObservationCollectionResultDto;
 import Ogni.ODAS.application.port.in.ObservationCollectionUseCase;
 import Ogni.ODAS.application.port.in.ReferenceSyncUseCase;
 import Ogni.ODAS.application.port.out.collector.ExternalObservationCollectorPort;
+import Ogni.ODAS.application.port.out.collector.ExternalPopulationCollectorPort;
 import Ogni.ODAS.application.port.out.persistence.*;
 import Ogni.ODAS.application.support.SourceRegionCode;
 import Ogni.ODAS.application.support.TextNormalizer;
@@ -27,6 +28,7 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
 
     private final ReferenceSyncUseCase referenceSyncUseCase;
     private final ExternalObservationCollectorPort observationCollector;
+    private final ExternalPopulationCollectorPort populationCollector;
     private final RegionPersistencePort regionPersistence;
     private final PeriodPersistencePort periodPersistence;
     private final IndicatorPersistencePort indicatorPersistence;
@@ -35,9 +37,10 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
     private final DatasetCollectionPersistencePort datasetCollectionPersistence;
     private final ObservationPersistencePort observationPersistence;
 
-    public ObservationCollectionService(ReferenceSyncUseCase referenceSyncUseCase, ExternalObservationCollectorPort observationCollector, RegionPersistencePort regionPersistence, PeriodPersistencePort periodPersistence, IndicatorPersistencePort indicatorPersistence, IndicatorYearEntryPersistencePort indicatorYearEntryPersistence, DatasetVersionPersistencePort datasetVersionPersistence, DatasetCollectionPersistencePort datasetCollectionPersistence, ObservationPersistencePort observationPersistence) {
+    public ObservationCollectionService(ReferenceSyncUseCase referenceSyncUseCase, ExternalObservationCollectorPort observationCollector, ExternalPopulationCollectorPort populationCollector, RegionPersistencePort regionPersistence, PeriodPersistencePort periodPersistence, IndicatorPersistencePort indicatorPersistence, IndicatorYearEntryPersistencePort indicatorYearEntryPersistence, DatasetVersionPersistencePort datasetVersionPersistence, DatasetCollectionPersistencePort datasetCollectionPersistence, ObservationPersistencePort observationPersistence) {
         this.referenceSyncUseCase = Objects.requireNonNull(referenceSyncUseCase);
         this.observationCollector = Objects.requireNonNull(observationCollector);
+        this.populationCollector = Objects.requireNonNull(populationCollector);
         this.regionPersistence = Objects.requireNonNull(regionPersistence);
         this.periodPersistence = Objects.requireNonNull(periodPersistence);
         this.indicatorPersistence = Objects.requireNonNull(indicatorPersistence);
@@ -55,12 +58,18 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
     public ObservationCollectionResultDto collectMonthlyObservations(CollectObservationsCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         referenceSyncUseCase.syncRegionsIfNecessary();
-        ensureIndicators(command.groupCode(), command.year());
+        if (command.groupCode() != IndicatorGroupCode.OTHER) {
+            ensureIndicators(command.groupCode(), command.year());
+        }
+        ensureIndicators(IndicatorGroupCode.OTHER, command.year());
 
         Period period = periodPersistence.getOrCreateMonth(command.year(), command.month());
         Period yearPeriod = periodPersistence.getOrCreateYear(command.year());
         Map<String, Region> regionsByExternalCode = loadSelectedRegionsByExternalCode(command.regionIds());
-        Map<IndicatorLookupKey, IndicatorYearEntry> entriesByNameAndParent = loadEntriesByNameAndParent(command.groupCode(), yearPeriod.id());
+        Map<IndicatorLookupKey, IndicatorYearEntry> entriesByNameAndParent = command.groupCode() == IndicatorGroupCode.OTHER
+                ? Map.of()
+                : loadEntriesByNameAndParent(command.groupCode(), yearPeriod.id());
+        Map<IndicatorLookupKey, IndicatorYearEntry> populationEntriesByNameAndParent = loadEntriesByNameAndParent(IndicatorGroupCode.OTHER, yearPeriod.id());
         List<ExternalRegionRef> externalRegions = regionsByExternalCode.values().stream()
                 .map(region -> new ExternalRegionRef(
                         SourceSystemCode.IMINFIN,
@@ -74,11 +83,46 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
         int saved = 0;
         int skipped = 0;
 
-        for (ExternalDatasetPayload payload : observationCollector.collectObservations(command.groupCode(), command.year(), command.month(), externalRegions)) {
+        if (command.groupCode() != IndicatorGroupCode.OTHER) {
+            for (ExternalDatasetPayload payload : observationCollector.collectObservations(command.groupCode(), command.year(), command.month(), externalRegions)) {
+                payloadCount++;
+                DatasetCollection collection = saveCollection(payload);
+
+                Map<ObservationIdentity, Observation> observationsToSave = new LinkedHashMap<>();
+                for (ExternalObservationRow row : payload.observations()) {
+                    received++;
+                    Region region = row == null ? null : regionsByExternalCode.get(row.regionExternalCode());
+
+                    if (region == null || row.indicatorName() == null || row.value() == null || row.valueKind() == null) {
+                        skipped++;
+                        continue;
+                    }
+
+                    IndicatorYearEntry entry = entriesByNameAndParent.get(IndicatorLookupKey.from(row.indicatorName(), row.parentIndicatorName()));
+                    if (entry == null) {
+                        skipped++;
+                        continue;
+                    }
+                    Observation observation = new Observation(
+                            null,
+                            collection.id(),
+                            region.id(),
+                            entry.id(),
+                            period.id(),
+                            row.valueKind(),
+                            row.value()
+                    );
+                    observationsToSave.put(ObservationIdentity.from(observation), observation);
+                }
+
+                saved += observationPersistence.upsertCurrentBatch(observationsToSave.values());
+            }
+        }
+
+        List<Period> monthPeriods = getOrCreateMonthPeriods(command.year());
+        for (ExternalDatasetPayload payload : populationCollector.collectPopulationObservations(command.year(), externalRegions)) {
             payloadCount++;
-            DatasetVersion version = datasetVersionPersistence.findByIdentity(payload.sourceSystemCode(), payload.externalTitle(), payload.externalDateModified())
-                    .orElseGet(() -> datasetVersionPersistence.save(new DatasetVersion(null, payload.sourceSystemCode(), payload.externalTitle(), payload.externalDateModified())));
-            DatasetCollection collection = datasetCollectionPersistence.save(new DatasetCollection(null, version.id(), OffsetDateTime.now(ZoneOffset.UTC), payload.request(), payload.rawData()));
+            DatasetCollection collection = saveCollection(payload);
 
             Map<ObservationIdentity, Observation> observationsToSave = new LinkedHashMap<>();
             for (ExternalObservationRow row : payload.observations()) {
@@ -90,28 +134,44 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
                     continue;
                 }
 
-                IndicatorYearEntry entry = entriesByNameAndParent.get(IndicatorLookupKey.from(row.indicatorName(), row.parentIndicatorName()));
+                IndicatorYearEntry entry = populationEntriesByNameAndParent.get(IndicatorLookupKey.from(row.indicatorName(), row.parentIndicatorName()));
                 if (entry == null) {
                     skipped++;
                     continue;
                 }
-                Observation observation = new Observation(
-                        null,
-                        collection.id(),
-                        region.id(),
-                        entry.id(),
-                        period.id(),
-                        row.valueKind(),
-                        row.value()
-                );
-                observationsToSave.put(ObservationIdentity.from(observation), observation);
+
+                for (Period monthPeriod : monthPeriods) {
+                    Observation observation = new Observation(
+                            null,
+                            collection.id(),
+                            region.id(),
+                            entry.id(),
+                            monthPeriod.id(),
+                            row.valueKind(),
+                            row.value()
+                    );
+                    observationsToSave.put(ObservationIdentity.from(observation), observation);
+                }
             }
 
-            int batchSaved = observationPersistence.upsertCurrentBatch(observationsToSave.values());
-            saved += batchSaved;
+            saved += observationPersistence.upsertCurrentBatch(observationsToSave.values());
         }
 
         return new ObservationCollectionResultDto(payloadCount, received, saved, skipped);
+    }
+
+    private DatasetCollection saveCollection(ExternalDatasetPayload payload) {
+        DatasetVersion version = datasetVersionPersistence.findByIdentity(payload.sourceSystemCode(), payload.externalTitle(), payload.externalDateModified())
+                .orElseGet(() -> datasetVersionPersistence.save(new DatasetVersion(null, payload.sourceSystemCode(), payload.externalTitle(), payload.externalDateModified())));
+        return datasetCollectionPersistence.save(new DatasetCollection(null, version.id(), OffsetDateTime.now(ZoneOffset.UTC), payload.request(), payload.rawData()));
+    }
+
+    private List<Period> getOrCreateMonthPeriods(int year) {
+        List<Period> result = new ArrayList<>(12);
+        for (int month = 1; month <= 12; month++) {
+            result.add(periodPersistence.getOrCreateMonth(year, month));
+        }
+        return result;
     }
 
     private void ensureIndicators(IndicatorGroupCode groupCode, int year) {
