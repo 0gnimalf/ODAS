@@ -64,6 +64,7 @@ export function getObservations(query: ObservationQuery): Promise<ObservationRea
 
     appendRepeatedNumberParams(params, 'regionId', query.regionIds);
     appendRepeatedNumberParams(params, 'indicatorYearEntryId', query.indicatorYearEntryIds);
+    query.valueKinds?.forEach((valueKind) => params.append('valueKind', valueKind));
 
     return fetchJson<ObservationReadResultDto>(`/internal/temp/read/observations?${params.toString()}`);
 }

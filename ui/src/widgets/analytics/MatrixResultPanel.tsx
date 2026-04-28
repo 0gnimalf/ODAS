@@ -2,50 +2,52 @@ import type {ReactNode} from 'react';
 import {useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
 import {formatObservationValue, truncateLabel} from '../../shared/lib/format';
-import type {MatrixCellDto, RegionIndicatorMatrixResultDto} from '../../shared/types/analysis';
+import type {PopulationByRegion} from '../../shared/lib/population';
+import {countKnownPopulation} from '../../shared/lib/population';
+import type {
+    RegionIndicatorMatrixColumnDto,
+    RegionIndicatorMatrixResultDto,
+    RegionIndicatorMatrixRowDto
+} from '../../shared/types/analysis';
 
-type ViewKey = 'heatmap' | 'table' | 'normalized' | 'summary';
-
-const VIEWS: Array<{ key: ViewKey; title: string; description: string }> = [
-    {key: 'heatmap', title: 'Heatmap', description: 'Основная матрица регионов и показателей.'},
-    {key: 'table', title: 'Таблица-матрица', description: 'Точное табличное представление значений.'},
-    {key: 'normalized', title: 'Нормализованная heatmap', description: 'Цветовая шкала в пределах каждого показателя.'},
-    {key: 'summary', title: 'Служебная сводка', description: 'Размер матрицы и заполненность.'}
-];
-
-const HEATMAP_COLORS = ['#f7fbff', '#cfe1f2', '#8fbce6', '#3f82d6', '#0b4ea2'];
-
-export function MatrixResultPanel({result, loading, error, isDirty}: {
+export function MatrixResultPanel({result, loading, error, isDirty, populationByRegion, populationWarning}: {
     result: RegionIndicatorMatrixResultDto | null;
     loading: boolean;
     error: string | null;
     isDirty: boolean;
+    populationByRegion: PopulationByRegion;
+    populationWarning: string | null;
 }) {
-    const [enabled, setEnabled] = useState<ViewKey[]>(['heatmap', 'table', 'summary']);
     const [showCellLabels, setShowCellLabels] = useState(false);
-    const [hideMissing, setHideMissing] = useState(false);
+    const [hideMissingColumns, setHideMissingColumns] = useState(false);
 
-    const enabledSet = useMemo(() => new Set(enabled), [enabled]);
-    const matrix = useMemo(() => buildMatrixModel(result, hideMissing), [result, hideMissing]);
+    const absoluteMatrix = useMemo(
+        () => buildMatrixModel(result, populationByRegion, 'absolute', hideMissingColumns),
+        [result, populationByRegion, hideMissingColumns]
+    );
+    const perCapitaMatrix = useMemo(
+        () => buildMatrixModel(result, populationByRegion, 'perCapita', hideMissingColumns),
+        [result, populationByRegion, hideMissingColumns]
+    );
+    const normalizedAbsoluteMatrix = useMemo(() => normalizeByColumn(absoluteMatrix), [absoluteMatrix]);
+    const normalizedPerCapitaMatrix = useMemo(() => normalizeByColumn(perCapitaMatrix), [perCapitaMatrix]);
 
-    const toggle = (key: ViewKey) => {
-        setEnabled((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
-    };
+    const knownPopulation = result ? countKnownPopulation(populationByRegion, result.rows.map((row) => row.regionId)) : 0;
 
     return (
         <div className="results-stack">
             <section className="panel result-display-selector-panel">
                 <div className="panel-header align-start compact-gap">
                     <div>
-                        <h2>Представления аналитики: матрица</h2>
-                        <p>Heatmap, табличная матрица и сводка заполненности для набора регионов и показателей.</p>
+                        <h2>Матрица регионов и показателей</h2>
+                        <p>Сначала показаны исходные значения, затем с учетом на населения, после этого — нормализация
+                            по каждому показателю.</p>
                     </div>
                     <div className="status-badges">
-                        <span className="status-badge">Активно: {enabled.length}</span>
+                        {result && <span className="status-badge">{result.valueKindLabel}</span>}
                         {isDirty && <span className="warning-badge">Параметры сценария изменены</span>}
                     </div>
                 </div>
-
                 <div className="view-settings-grid analytics-inline-settings-grid">
                     <label className="check-row checkbox-card compact-checkbox-card">
                         <input type="checkbox" checked={showCellLabels}
@@ -53,276 +55,303 @@ export function MatrixResultPanel({result, loading, error, isDirty}: {
                         <span>Подписи в ячейках</span>
                     </label>
                     <label className="check-row checkbox-card compact-checkbox-card">
-                        <input type="checkbox" checked={hideMissing}
-                               onChange={(event) => setHideMissing(event.target.checked)}/>
-                        <span>Скрывать missing</span>
+                        <input type="checkbox" checked={hideMissingColumns}
+                               onChange={(event) => setHideMissingColumns(event.target.checked)}/>
+                        <span>Скрывать пустые столбцы</span>
                     </label>
                 </div>
-
-                <div className="result-view-toggle-grid top-margin-16">
-                    {VIEWS.map((view) => {
-                        const active = enabledSet.has(view.key);
-                        return (
-                            <label key={view.key} className={`result-view-toggle-card ${active ? 'is-enabled' : ''}`}>
-                                <div className="result-view-toggle-main">
-                                    <input type="checkbox" checked={active} onChange={() => toggle(view.key)}/>
-                                    <div>
-                                        <strong>{view.title}</strong>
-                                        <p>{view.description}</p>
-                                    </div>
-                                </div>
-                                <span
-                                    className={`result-view-toggle-status ${active ? 'is-enabled' : ''}`}>{active ? 'Показать' : 'Скрыто'}</span>
-                            </label>
-                        );
-                    })}
-                </div>
+                {populationWarning && <div className="warning-note top-margin-16">{populationWarning}</div>}
+                {!populationWarning && result && knownPopulation < result.rows.length && (
+                    <div className="warning-note top-margin-16">Население найдено не для всех
+                        регионов: {knownPopulation} из {result.rows.length}.</div>
+                )}
             </section>
 
-            {enabledSet.has('heatmap') && (
-                <section className="panel chart-panel result-view-panel">
-                    <Header title="Heatmap"
-                            description="Основная матрица регионов и выбранных показателей. Цвет нормализуется по всей выборке."/>
-                    <Guard loading={loading} error={error} hasData={Boolean(matrix?.cells.length)}
-                           emptyMessage="Матрица ещё не загружена.">
-                        {matrix ? <HeatmapChart matrix={matrix} showCellLabels={showCellLabels}
-                                                normalizedByColumn={false}/> : null}
-                    </Guard>
-                </section>
-            )}
+            <MatrixHeatmapSection
+                title="Матрица абсолютных значений"
+                description="Исходные значения из аналитического результата. Цветовая шкала общая для всей матрицы."
+                matrix={absoluteMatrix}
+                loading={loading}
+                error={error}
+                showCellLabels={showCellLabels}
+                normalized={false}
+                emptyMessage="Матрица абсолютных значений пуста."
+            />
 
-            {enabledSet.has('normalized') && (
-                <section className="panel chart-panel result-view-panel">
-                    <Header title="Нормализованная heatmap"
-                            description="Цвет нормализуется отдельно внутри каждого показателя, чтобы отличия были заметнее."/>
-                    <Guard loading={loading} error={error} hasData={Boolean(matrix?.cells.length)}
-                           emptyMessage="Матрица ещё не загружена.">
-                        {matrix ?
-                            <HeatmapChart matrix={matrix} showCellLabels={showCellLabels} normalizedByColumn/> : null}
-                    </Guard>
-                </section>
-            )}
+            <MatrixHeatmapSection
+                title="Матрица на численность населения"
+                description="Каждая ячейка пересчитана как значение показателя, делённое на население региона."
+                matrix={perCapitaMatrix}
+                loading={loading}
+                error={error}
+                showCellLabels={showCellLabels}
+                normalized={false}
+                emptyMessage="Матрица на население пуста."
+            />
 
-            {enabledSet.has('table') && (
-                <section className="panel table-panel result-view-panel">
-                    <Header title="Таблица-матрица"
-                            description="Точное табличное представление значений по строкам регионов и столбцам показателей."/>
-                    <Guard loading={loading} error={error}
-                           hasData={Boolean(matrix && matrix.rows.length && matrix.columns.length)}
-                           emptyMessage="Матрица пуста.">
-                        <div className="table-wrapper">
-                            <table>
-                                <thead>
-                                <tr>
-                                    <th>Регион</th>
-                                    {matrix?.columns.map((column) => (
-                                        <th key={column.indicatorYearEntryId}>
-                      <span className="table-header-clamp" title={column.indicatorName}>
-                        {truncateLabel(column.indicatorName, 42)}
-                      </span>
-                                        </th>
-                                    ))}
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {matrix?.rows.map((row) => (
-                                    <tr key={row.regionId}>
-                                        <td>{row.regionName}</td>
-                                        {matrix.columns.map((column) => {
-                                            const cell = matrix.cellMap.get(makeCellKey(row.regionId, column.indicatorYearEntryId));
-                                            return (
-                                                <td key={`${row.regionId}-${column.indicatorYearEntryId}`}>
-                                                    {cell?.missing ? '—' : formatObservationValue(cell?.value ?? null)}
-                                                </td>
-                                            );
-                                        })}
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Guard>
-                </section>
-            )}
+            <MatrixHeatmapSection
+                title="Нормализованная матрица абсолютных значений"
+                description="Нормализация выполнена отдельно внутри каждого показателя: минимум = 0, максимум = 100."
+                matrix={normalizedAbsoluteMatrix}
+                loading={loading}
+                error={error}
+                showCellLabels={showCellLabels}
+                normalized
+                emptyMessage="Нормализованная матрица абсолютных значений пуста."
+            />
 
-            {enabledSet.has('summary') && (
-                <section className="panel result-view-panel">
-                    <Header title="Служебная сводка" description="Размер матрицы и заполненность результата."/>
-                    <Guard loading={loading} error={error} hasData={Boolean(matrix)} emptyMessage="Сводка недоступна.">
-                        <div className="analytics-card-grid metrics-grid-compact">
-                            <Card title="Регионов" value={matrix?.rows.length ?? 0}/>
-                            <Card title="Показателей" value={matrix?.columns.length ?? 0}/>
-                            <Card title="Ячеек" value={matrix?.cells.length ?? 0}/>
-                            <Card title="Missing ячеек"
-                                  value={matrix?.cells.filter((cell) => cell.missing).length ?? 0}/>
-                        </div>
-                    </Guard>
-                </section>
-            )}
+            <MatrixHeatmapSection
+                title="Нормализованная матрица на население"
+                description="Пересчитанные на население значения нормализованы отдельно по каждому показателю."
+                matrix={normalizedPerCapitaMatrix}
+                loading={loading}
+                error={error}
+                showCellLabels={showCellLabels}
+                normalized
+                emptyMessage="Нормализованная матрица на население пуста."
+            />
+
+            <MatrixTableSection
+                title="Таблица абсолютных значений"
+                description="Точная матрица исходных значений."
+                matrix={absoluteMatrix}
+                loading={loading}
+                error={error}
+            />
+
+            <MatrixTableSection
+                title="Таблица значений на население"
+                description="Точная матрица значений, пересчитанных на численность населения."
+                matrix={perCapitaMatrix}
+                loading={loading}
+                error={error}
+            />
+
+            <section className="panel result-view-panel">
+                <Header title="Сводка матрицы"
+                        description="Размерность, заполненность и наличие населения для нормализации."/>
+                <Guard loading={loading} error={error} hasData={Boolean(result)} emptyMessage="Сводка недоступна.">
+                    <div className="analytics-card-grid metrics-grid-compact">
+                        <Card title="Регионов" value={result?.rows.length ?? 0}/>
+                        <Card title="Показателей" value={result?.columns.length ?? 0}/>
+                        <Card title="Ячеек" value={result?.cells.length ?? 0}/>
+                        <Card title="Missing ячеек" value={result?.cells.filter((cell) => cell.missing).length ?? 0}/>
+                        <Card title="Регионов с населением" value={`${knownPopulation} / ${result?.rows.length ?? 0}`}/>
+                    </div>
+                </Guard>
+            </section>
         </div>
     );
 }
 
-type HeatmapPoint = {
-    value: [number, number, number | null, number | null, number];
-    itemStyle?: { color: string };
-};
-
-type HeatmapMatrix = {
-    rows: Array<{ regionId: number; regionName: string }>;
-    columns: Array<{ indicatorYearEntryId: number; indicatorName: string }>;
-    cells: MatrixCellDto[];
-    cellMap: Map<string, MatrixCellDto>;
-    globalHeatmap: HeatmapPoint[];
-    columnNormalizedHeatmap: HeatmapPoint[];
-};
-
-function buildMatrixModel(result: RegionIndicatorMatrixResultDto | null, hideMissing: boolean): HeatmapMatrix | null {
-    if (!result) {
-        return null;
-    }
-
-    const rowIndexById = new Map(result.rows.map((row, index) => [row.regionId, index]));
-    const colIndexById = new Map(result.columns.map((column, index) => [column.indicatorYearEntryId, index]));
-    const cells = result.cells.filter((cell) => !hideMissing || !cell.missing);
-    const cellMap = new Map(cells.map((cell) => [makeCellKey(cell.regionId, cell.indicatorYearEntryId), cell]));
-
-    const numericValues = cells
-        .map((cell) => cell.value)
-        .filter((value): value is number => value != null && Number.isFinite(value));
-
-    const globalStats = getStats(numericValues);
-
-    const valuesByColumn = new Map<number, number[]>();
-    cells.forEach((cell) => {
-        if (cell.value == null || !Number.isFinite(cell.value)) {
-            return;
-        }
-        const bucket = valuesByColumn.get(cell.indicatorYearEntryId) ?? [];
-        bucket.push(cell.value);
-        valuesByColumn.set(cell.indicatorYearEntryId, bucket);
-    });
-
-    const columnStatsById = new Map<number, { min: number; max: number }>();
-    valuesByColumn.forEach((values, indicatorYearEntryId) => {
-        columnStatsById.set(indicatorYearEntryId, getStats(values));
-    });
-
-    const toHeatmapPoint = (cell: MatrixCellDto, columnScoped: boolean): HeatmapPoint => {
-        const columnIndex = colIndexById.get(cell.indicatorYearEntryId) ?? 0;
-        const rowIndex = rowIndexById.get(cell.regionId) ?? 0;
-
-        if (cell.missing || cell.value == null || !Number.isFinite(cell.value)) {
-            return {
-                value: [columnIndex, rowIndex, null, null, 1],
-                itemStyle: {color: '#eef2f8'}
-            };
-        }
-
-        const stats = columnScoped ? columnStatsById.get(cell.indicatorYearEntryId) ?? globalStats : globalStats;
-        const normalizedValue = normalizeToPercent(cell.value, stats.min, stats.max);
-
-        return {
-            value: [columnIndex, rowIndex, normalizedValue, cell.value, 0]
-        };
-    };
-
-    return {
-        rows: result.rows,
-        columns: result.columns,
-        cells,
-        cellMap,
-        globalHeatmap: cells.map((cell) => toHeatmapPoint(cell, false)),
-        columnNormalizedHeatmap: cells.map((cell) => toHeatmapPoint(cell, true))
-    };
-}
-
-function getStats(values: number[]): { min: number; max: number } {
-    if (values.length === 0) {
-        return {min: 0, max: 100};
-    }
-
-    const min = Math.min(...values);
-    const max = Math.max(...values);
-    return {min, max};
-}
-
-function normalizeToPercent(value: number, min: number, max: number): number {
-    if (max === min) {
-        return 50;
-    }
-    return Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
-}
-
-function HeatmapChart({matrix, showCellLabels, normalizedByColumn}: {
-    matrix: HeatmapMatrix;
+function MatrixHeatmapSection({title, description, matrix, loading, error, showCellLabels, normalized, emptyMessage}: {
+    title: string;
+    description: string;
+    matrix: MatrixModel | null;
+    loading: boolean;
+    error: string | null;
     showCellLabels: boolean;
-    normalizedByColumn: boolean
+    normalized: boolean;
+    emptyMessage: string;
 }) {
-    const data = normalizedByColumn ? matrix.columnNormalizedHeatmap : matrix.globalHeatmap;
-
     return (
-        <ReactECharts
-            style={{height: Math.max(320, matrix.rows.length * 42)}}
-            option={{
-                tooltip: {
-                    position: 'top',
-                    formatter: (params: {
-                        data: { value: [number, number, number | null, number | null, number] }
-                    }) => {
-                        const [x, y, intensity, rawValue, missingFlag] = params.data.value;
-                        const column = matrix.columns[x];
-                        const row = matrix.rows[y];
-                        return `${row?.regionName ?? ''}<br/>${column?.indicatorName ?? ''}<br/>${missingFlag === 1 ? 'Missing' : formatObservationValue(rawValue)}<br/>Интенсивность: ${intensity == null ? '—' : `${Math.round(intensity)}%`}`;
-                    }
-                },
-                grid: {left: 220, right: 36, top: 24, bottom: 140},
-                xAxis: {
-                    type: 'category',
-                    data: matrix.columns.map((column) => column.indicatorName),
-                    splitArea: {show: true},
-                    axisLabel: {
-                        interval: 0,
-                        rotate: 35,
-                        formatter: (value: string) => truncateLabel(value, 24)
-                    }
-                },
-                yAxis: {
-                    type: 'category',
-                    data: matrix.rows.map((row) => row.regionName),
-                    splitArea: {show: true}
-                },
-                visualMap: {
-                    min: 0,
-                    max: 100,
-                    dimension: 2,
-                    calculable: true,
-                    orient: 'horizontal',
-                    left: 'center',
-                    bottom: 20,
-                    text: ['100%', '0%'],
-                    inRange: {color: HEATMAP_COLORS},
-                    outOfRange: {color: ['#eef2f8']},
-                    formatter: (value: number) => `${Math.round(value)}%`
-                },
-                series: [{
-                    type: 'heatmap',
-                    data,
-                    label: showCellLabels ? {
-                        show: true,
-                        formatter: ({data: item}: {
-                            data: { value: [number, number, number | null, number | null, number] }
-                        }) => formatObservationValue(item.value[3])
-                    } : undefined,
-                    itemStyle: {borderColor: 'rgba(23, 32, 51, 0.08)', borderWidth: 1},
-                    emphasis: {itemStyle: {shadowBlur: 10, shadowColor: 'rgba(23, 32, 51, 0.18)'}}
-                }]
-            }}
-        />
+        <section className="panel chart-panel result-view-panel">
+            <Header title={title} description={description}/>
+            <Guard loading={loading} error={error}
+                   hasData={Boolean(matrix && matrix.cells.some((cell) => cell.value != null))}
+                   emptyMessage={emptyMessage}>
+                {matrix && <ReactECharts style={{height: heatmapHeight(matrix)}}
+                                         option={buildHeatmapOption(matrix, showCellLabels, normalized)} notMerge/>}
+            </Guard>
+        </section>
     );
 }
 
-function makeCellKey(regionId: number, indicatorYearEntryId: number): string {
+function MatrixTableSection({title, description, matrix, loading, error}: {
+    title: string;
+    description: string;
+    matrix: MatrixModel | null;
+    loading: boolean;
+    error: string | null;
+}) {
+    return (
+        <section className="panel table-panel result-view-panel">
+            <Header title={title} description={description}/>
+            <Guard loading={loading} error={error}
+                   hasData={Boolean(matrix && matrix.rows.length && matrix.columns.length)}
+                   emptyMessage="Таблица матрицы пуста.">
+                {matrix && (
+                    <div className="table-wrapper table-wrapper-scroll matrix-table-scroll">
+                        <table className="matrix-table">
+                            <thead>
+                            <tr>
+                                <th className="sticky-first-column">Регион</th>
+                                {matrix.columns.map((column) => (
+                                    <th key={column.indicatorYearEntryId}>
+                                        <span className="table-header-clamp"
+                                              title={column.indicatorName}>{truncateLabel(column.indicatorName, 42)}</span>
+                                    </th>
+                                ))}
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {matrix.rows.map((row) => (
+                                <tr key={row.regionId}>
+                                    <td className="sticky-first-column">{row.regionName}</td>
+                                    {matrix.columns.map((column) => {
+                                        const cell = matrix.cellMap.get(makeCellKey(row.regionId, column.indicatorYearEntryId));
+                                        return <td
+                                            key={`${row.regionId}-${column.indicatorYearEntryId}`}>{formatObservationValue(cell?.value)}</td>;
+                                    })}
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                )}
+            </Guard>
+        </section>
+    );
+}
+
+interface MatrixCellView {
+    regionId: number;
+    indicatorYearEntryId: number;
+    value: number | null;
+    missing: boolean;
+}
+
+interface MatrixModel {
+    rows: RegionIndicatorMatrixRowDto[];
+    columns: RegionIndicatorMatrixColumnDto[];
+    cells: MatrixCellView[];
+    cellMap: Map<string, MatrixCellView>;
+    unitLabel: string;
+}
+
+function buildMatrixModel(
+    result: RegionIndicatorMatrixResultDto | null,
+    populationByRegion: PopulationByRegion,
+    mode: 'absolute' | 'perCapita',
+    hideMissingColumns: boolean
+): MatrixModel | null {
+    if (!result) return null;
+
+    const rawCellMap = new Map(result.cells.map((cell) => [makeCellKey(cell.regionId, cell.indicatorYearEntryId), cell]));
+    const cells: MatrixCellView[] = [];
+
+    for (const row of result.rows) {
+        const population = populationByRegion[row.regionId];
+        for (const column of result.columns) {
+            const raw = rawCellMap.get(makeCellKey(row.regionId, column.indicatorYearEntryId));
+            const value = raw?.value ?? null;
+            const normalizedValue = mode === 'absolute'
+                ? value
+                : value != null && Number.isFinite(population) && population > 0
+                    ? value / population
+                    : null;
+            cells.push({
+                regionId: row.regionId,
+                indicatorYearEntryId: column.indicatorYearEntryId,
+                value: normalizedValue,
+                missing: (raw?.missing ?? false) || normalizedValue == null
+            });
+        }
+    }
+
+    const visibleColumns = hideMissingColumns
+        ? result.columns.filter((column) => cells.some((cell) => cell.indicatorYearEntryId === column.indicatorYearEntryId && cell.value != null))
+        : result.columns;
+    const visibleColumnIds = new Set(visibleColumns.map((column) => column.indicatorYearEntryId));
+    const visibleCells = cells.filter((cell) => visibleColumnIds.has(cell.indicatorYearEntryId));
+
+    return {
+        rows: result.rows,
+        columns: visibleColumns,
+        cells: visibleCells,
+        cellMap: new Map(visibleCells.map((cell) => [makeCellKey(cell.regionId, cell.indicatorYearEntryId), cell])),
+        unitLabel: mode === 'absolute' ? result.unitCodeLabel : `${result.unitCodeLabel}/чел.`
+    };
+}
+
+function normalizeByColumn(matrix: MatrixModel | null): MatrixModel | null {
+    if (!matrix) return null;
+    const cells = matrix.cells.map((cell) => ({...cell}));
+    for (const column of matrix.columns) {
+        const columnCells = cells.filter((cell) => cell.indicatorYearEntryId === column.indicatorYearEntryId && cell.value != null);
+        const values = columnCells.map((cell) => cell.value as number);
+        if (values.length === 0) continue;
+        const min = Math.min(...values);
+        const max = Math.max(...values);
+        for (const cell of columnCells) {
+            cell.value = max === min ? 100 : (((cell.value as number) - min) / (max - min)) * 100;
+        }
+    }
+    return {
+        ...matrix,
+        unitLabel: '0–100',
+        cells,
+        cellMap: new Map(cells.map((cell) => [makeCellKey(cell.regionId, cell.indicatorYearEntryId), cell]))
+    };
+}
+
+function buildHeatmapOption(matrix: MatrixModel, showCellLabels: boolean, normalized: boolean) {
+    const values = matrix.cells.map((cell) => cell.value).filter((value): value is number => value != null && Number.isFinite(value));
+    const min = normalized ? 0 : Math.min(...values, 0);
+    const max = normalized ? 100 : Math.max(...values, 1);
+    const data = matrix.cells.map((cell) => [
+        matrix.columns.findIndex((column) => column.indicatorYearEntryId === cell.indicatorYearEntryId),
+        matrix.rows.findIndex((row) => row.regionId === cell.regionId),
+        cell.value
+    ]);
+
+    return {
+        tooltip: {
+            position: 'top',
+            formatter: (params: { value: [number, number, number | null] }) => {
+                const [columnIndex, rowIndex, value] = params.value;
+                return `${matrix.rows[rowIndex]?.regionName ?? ''}<br/>${matrix.columns[columnIndex]?.indicatorName ?? ''}<br/>${formatObservationValue(value)} ${matrix.unitLabel}`;
+            }
+        },
+        grid: {left: 190, right: 48, top: 110, bottom: 54},
+        xAxis: {
+            type: 'category',
+            data: matrix.columns.map((column) => truncateLabel(column.indicatorName, 26)),
+            axisLabel: {interval: 0, rotate: 35, width: 120, overflow: 'truncate'}
+        },
+        yAxis: {
+            type: 'category',
+            inverse: true,
+            data: matrix.rows.map((row) => truncateLabel(row.regionName, 32)),
+            axisLabel: {width: 170, overflow: 'truncate'}
+        },
+        visualMap: {
+            min,
+            max,
+            calculable: true,
+            orient: 'horizontal',
+            left: 'center',
+            bottom: 0
+        },
+        series: [{
+            type: 'heatmap',
+            data,
+            label: showCellLabels ? {
+                show: true,
+                formatter: (params: {
+                    value: [number, number, number | null]
+                }) => formatObservationValue(params.value[2])
+            } : undefined,
+            emphasis: {itemStyle: {shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.25)'}}
+        }]
+    };
+}
+
+function heatmapHeight(matrix: MatrixModel) {
+    return Math.max(420, Math.min(980, matrix.rows.length * 30 + 180));
+}
+
+function makeCellKey(regionId: number, indicatorYearEntryId: number) {
     return `${regionId}:${indicatorYearEntryId}`;
 }
 
@@ -337,7 +366,7 @@ function Guard({loading, error, hasData, emptyMessage, children}: {
     error: string | null;
     hasData: boolean;
     emptyMessage: string;
-    children: ReactNode
+    children: ReactNode;
 }) {
     if (loading) return <div className="empty-state">Загрузка аналитических данных…</div>;
     if (error) return <div className="error-state">{error}</div>;
@@ -345,7 +374,7 @@ function Guard({loading, error, hasData, emptyMessage, children}: {
     return <>{children}</>;
 }
 
-function Card({title, value}: { title: string; value: number }) {
+function Card({title, value}: { title: string; value: ReactNode }) {
     return <article className="analytics-kpi-card"><span className="analytics-kpi-title">{title}</span><strong
         className="analytics-kpi-value">{value}</strong></article>;
 }

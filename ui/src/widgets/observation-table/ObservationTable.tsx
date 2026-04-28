@@ -33,11 +33,15 @@ const COLUMN_DEFINITIONS: ColumnDefinition[] = [
         label: 'Показатель',
         render: (observation) => (
             <span className="table-cell-clamp observation-indicator-cell" title={observation.indicatorName}>
-                {truncateLabel(observation.indicatorName, 96)}
+                {truncateLabel(observation.indicatorName, 92)}
             </span>
         )
     },
-    {key: 'valueKindLabel', label: 'Вид значения', render: (observation) => observation.valueKindLabel},
+    {
+        key: 'valueKindLabel',
+        label: 'Вид значения',
+        render: (observation) => truncateLabel(observation.valueKindLabel, 52)
+    },
     {key: 'unitCodeLabel', label: 'Ед. изм.', render: (observation) => observation.unitCodeLabel},
     {key: 'value', label: 'Значение', render: (observation) => formatObservationValue(observation.value)},
     {key: 'datasetCollectionId', label: 'Dataset', render: (observation) => observation.datasetCollectionId}
@@ -53,6 +57,7 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
     const [searchText, setSearchText] = useState('');
     const [valueKindFilter, setValueKindFilter] = useState('');
     const [unitCodeFilter, setUnitCodeFilter] = useState('');
+    const [visibleRowLimit, setVisibleRowLimit] = useState(20);
 
     const visibleColumnSet = useMemo(() => new Set(visibleColumns), [visibleColumns]);
 
@@ -70,15 +75,9 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
         const normalizedSearchText = searchText.trim().toLowerCase();
 
         const next = observations.filter((observation) => {
-            if (valueKindFilter && observation.valueKindLabel !== valueKindFilter) {
-                return false;
-            }
-            if (unitCodeFilter && observation.unitCodeLabel !== unitCodeFilter) {
-                return false;
-            }
-            if (!normalizedSearchText) {
-                return true;
-            }
+            if (valueKindFilter && observation.valueKindLabel !== valueKindFilter) return false;
+            if (unitCodeFilter && observation.unitCodeLabel !== unitCodeFilter) return false;
+            if (!normalizedSearchText) return true;
 
             const searchTokens = [
                 observation.regionName,
@@ -88,7 +87,6 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                 String(observation.datasetCollectionId),
                 formatObservationValue(observation.value)
             ];
-
             return searchTokens.some((token) => token.toLowerCase().includes(normalizedSearchText));
         });
 
@@ -97,14 +95,12 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
     }, [result, searchText, valueKindFilter, unitCodeFilter, sortBy, sortDirection]);
 
     const visibleColumnDefinitions = COLUMN_DEFINITIONS.filter((column) => visibleColumnSet.has(column.key));
+    const tableMaxHeight = Math.max(8, visibleRowLimit) * 44 + 48;
 
     const toggleColumn = (columnKey: TableColumnKey) => {
-        setVisibleColumns((current) => {
-            if (current.includes(columnKey)) {
-                return current.filter((item) => item !== columnKey);
-            }
-            return [...current, columnKey];
-        });
+        setVisibleColumns((current) => current.includes(columnKey)
+            ? current.filter((item) => item !== columnKey)
+            : [...current, columnKey]);
     };
 
     return (
@@ -112,10 +108,11 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
             <div className="panel-header align-start compact-gap">
                 <div>
                     <h2>Таблица наблюдений</h2>
-                    <p>Гибкое табличное представление с настройкой столбцов, сортировки и фильтров.</p>
+                    <p>Гибкое табличное представление с настройкой столбцов, сортировки и фильтров,</p>
+                    <p>а область данных прокручивается внутри блока.</p>
                 </div>
                 <div className="result-view-actions">
-                    {isDirty && <div className="warning-badge">Фильтры запроса изменены</div>}
+                    {isDirty && <span className="warning-badge">Фильтры запроса изменены</span>}
                     <button type="button" className="secondary-button"
                             onClick={() => setSettingsVisible((current) => !current)}>
                         {settingsVisible ? 'Скрыть настройки' : 'Настройки таблицы'}
@@ -125,56 +122,44 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
 
             {settingsVisible && (
                 <div className="view-settings-card">
-                    <div className="view-settings-grid">
+                    <div className="view-settings-grid table-settings-grid">
                         <label className="field">
-                            <span>Поиск по строкам</span>
-                            <input
-                                type="search"
-                                value={searchText}
-                                onChange={(event) => setSearchText(event.target.value)}
-                                placeholder="Регион, показатель, значение…"
-                            />
+                            <span>Поиск</span>
+                            <input type="search" value={searchText}
+                                   onChange={(event) => setSearchText(event.target.value)}
+                                   placeholder="Регион, показатель, значение…"/>
                         </label>
-
                         <label className="field">
-                            <span>Фильтр по виду значения</span>
+                            <span>Вид значения</span>
                             <select value={valueKindFilter}
                                     onChange={(event) => setValueKindFilter(event.target.value)}>
-                                <option value="">Все виды</option>
-                                {valueKindOptions.map((option) => (
-                                    <option key={option} value={option}>
-                                        {option}
-                                    </option>
-                                ))}
+                                <option value="">Все</option>
+                                {valueKindOptions.map((option) => <option key={option}
+                                                                          value={option}>{option}</option>)}
                             </select>
                         </label>
-
                         <label className="field">
-                            <span>Фильтр по единице</span>
+                            <span>Единица измерения</span>
                             <select value={unitCodeFilter} onChange={(event) => setUnitCodeFilter(event.target.value)}>
-                                <option value="">Все единицы</option>
-                                {unitCodeOptions.map((option) => (
-                                    <option key={option} value={option}>
-                                        {option}
-                                    </option>
-                                ))}
+                                <option value="">Все</option>
+                                {unitCodeOptions.map((option) => <option key={option} value={option}>{option}</option>)}
                             </select>
                         </label>
-
+                        <label className="field field-fit-content">
+                            <span>Строк видно</span>
+                            <input type="number" min={5} max={150} value={visibleRowLimit}
+                                   onChange={(event) => setVisibleRowLimit(clamp(Number(event.target.value) || 25, 8, 80))}/>
+                        </label>
                         <label className="field">
-                            <span>Сортировка</span>
+                            <span>Сортировать по</span>
                             <select value={sortBy}
                                     onChange={(event) => setSortBy(event.target.value as TableColumnKey)}>
-                                {COLUMN_DEFINITIONS.map((column) => (
-                                    <option key={column.key} value={column.key}>
-                                        {column.label}
-                                    </option>
-                                ))}
+                                {COLUMN_DEFINITIONS.map((column) => <option key={column.key}
+                                                                            value={column.key}>{column.label}</option>)}
                             </select>
                         </label>
-
                         <label className="field field-fit-content">
-                            <span>Направление</span>
+                            <span>Порядок</span>
                             <select value={sortDirection}
                                     onChange={(event) => setSortDirection(event.target.value as TableSortDirection)}>
                                 <option value="asc">По возрастанию</option>
@@ -182,107 +167,69 @@ export function ObservationTable({result, loading, error, isDirty}: ObservationT
                             </select>
                         </label>
                     </div>
-
-                    <div className="column-settings-block">
-                        <div className="selector-header-row compact-bottom-gap">
-                            <strong>Отображаемые поля</strong>
-                            <div className="inline-actions wrap">
-                                <button type="button" onClick={() => setVisibleColumns(DEFAULT_VISIBLE_COLUMNS)}>
-                                    Все поля
-                                </button>
-                                <button type="button" onClick={() => setVisibleColumns([])}>
-                                    Очистить
-                                </button>
-                            </div>
-                        </div>
-                        <div className="checkbox-grid">
-                            {COLUMN_DEFINITIONS.map((column) => (
-                                <label key={column.key} className="check-row checkbox-card">
-                                    <input
-                                        type="checkbox"
-                                        checked={visibleColumnSet.has(column.key)}
-                                        onChange={() => toggleColumn(column.key)}
-                                    />
-                                    <span>{column.label}</span>
-                                </label>
-                            ))}
-                        </div>
+                    <div className="column-toggle-row">
+                        {COLUMN_DEFINITIONS.map((column) => (
+                            <label key={column.key}
+                                   className={`chip-toggle ${visibleColumnSet.has(column.key) ? 'is-active' : ''}`}>
+                                <input type="checkbox" checked={visibleColumnSet.has(column.key)}
+                                       onChange={() => toggleColumn(column.key)}/>
+                                <span>{column.label}</span>
+                            </label>
+                        ))}
                     </div>
                 </div>
             )}
 
-            {loading ? (
-                <div className="empty-state">Загрузка наблюдений…</div>
-            ) : error ? (
-                <div className="error-state">{error}</div>
-            ) : !result ? (
-                <div className="empty-state">Запрос ещё не выполнялся.</div>
-            ) : filteredObservations.length === 0 ? (
-                <div className="empty-state">По текущим настройкам таблицы ничего не найдено.</div>
-            ) : visibleColumnDefinitions.length === 0 ? (
-                <div className="empty-state">Выберите хотя бы одно поле для отображения таблицы.</div>
-            ) : (
-                <>
-                    <div className="result-view-summary-row">
-                        <span className="status-badge">После фильтрации: {filteredObservations.length}</span>
-                        <span className="status-badge">Всего в ответе: {result.total}</span>
-                    </div>
-                    <div className="table-wrapper">
-                        <table>
-                            <thead>
-                            <tr>
-                                {visibleColumnDefinitions.map((column) => (
-                                    <th key={column.key}>{column.label}</th>
-                                ))}
+            <Guard loading={loading} error={error} hasData={filteredObservations.length > 0}
+                   emptyMessage="Наблюдения ещё не загружены или не соответствуют фильтрам.">
+                <div className="table-summary-row">
+                    <span>Всего: {result?.total ?? 0}</span>
+                    <span>После фильтров: {filteredObservations.length}</span>
+                    <span>Видимая область: до {visibleRowLimit} строк</span>
+                </div>
+                <div className="table-wrapper table-wrapper-scroll" style={{maxHeight: tableMaxHeight}}>
+                    <table>
+                        <thead>
+                        <tr>
+                            {visibleColumnDefinitions.map((column) => <th key={column.key}>{column.label}</th>)}
+                        </tr>
+                        </thead>
+                        <tbody>
+                        {filteredObservations.map((observation) => (
+                            <tr key={observation.observationId}>
+                                {visibleColumnDefinitions.map((column) => <td
+                                    key={column.key}>{column.render(observation)}</td>)}
                             </tr>
-                            </thead>
-                            <tbody>
-                            {filteredObservations.map((observation) => (
-                                <tr key={observation.observationId}>
-                                    {visibleColumnDefinitions.map((column) => (
-                                        <td key={column.key}>{column.render(observation)}</td>
-                                    ))}
-                                </tr>
-                            ))}
-                            </tbody>
-                        </table>
-                    </div>
-                </>
-            )}
+                        ))}
+                        </tbody>
+                    </table>
+                </div>
+            </Guard>
         </section>
     );
 }
 
-function compareObservations(
-    left: ObservationReadDto,
-    right: ObservationReadDto,
-    sortBy: TableColumnKey,
-    sortDirection: TableSortDirection
-): number {
-    const directionMultiplier = sortDirection === 'asc' ? 1 : -1;
-
-    if (sortBy === 'value') {
-        return (left.value - right.value) * directionMultiplier;
+function compareObservations(left: ObservationReadDto, right: ObservationReadDto, sortBy: TableColumnKey, direction: TableSortDirection) {
+    const multiplier = direction === 'asc' ? 1 : -1;
+    if (sortBy === 'value' || sortBy === 'datasetCollectionId') {
+        return ((left[sortBy] as number) - (right[sortBy] as number)) * multiplier;
     }
-
-    if (sortBy === 'datasetCollectionId') {
-        return (left.datasetCollectionId - right.datasetCollectionId) * directionMultiplier;
-    }
-
-    const leftValue = getComparableStringValue(left, sortBy);
-    const rightValue = getComparableStringValue(right, sortBy);
-    return leftValue.localeCompare(rightValue, 'ru') * directionMultiplier;
+    return String(left[sortBy]).localeCompare(String(right[sortBy]), 'ru') * multiplier;
 }
 
-function getComparableStringValue(observation: ObservationReadDto, sortBy: Exclude<TableColumnKey, 'value' | 'datasetCollectionId'>): string {
-    switch (sortBy) {
-        case 'regionName':
-            return observation.regionName;
-        case 'indicatorName':
-            return observation.indicatorName;
-        case 'valueKindLabel':
-            return observation.valueKindLabel;
-        case 'unitCodeLabel':
-            return observation.unitCode;
-    }
+function Guard({loading, error, hasData, emptyMessage, children}: {
+    loading: boolean;
+    error: string | null;
+    hasData: boolean;
+    emptyMessage: string;
+    children: ReactNode;
+}) {
+    if (loading) return <div className="empty-state">Загрузка таблицы…</div>;
+    if (error) return <div className="error-state">{error}</div>;
+    if (!hasData) return <div className="empty-state">{emptyMessage}</div>;
+    return <>{children}</>;
+}
+
+function clamp(value: number, min: number, max: number) {
+    return Math.min(max, Math.max(min, value));
 }

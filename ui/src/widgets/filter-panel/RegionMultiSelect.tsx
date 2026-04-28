@@ -7,18 +7,29 @@ interface RegionMultiSelectProps {
     selectedRegionIds: number[];
     onChange: (value: number[]) => void;
     disabled?: boolean;
+    mode?: 'single' | 'multiple';
+    label?: string;
+    helperText?: string;
 }
 
-export function RegionMultiSelect({regions, selectedRegionIds, onChange, disabled = false}: RegionMultiSelectProps) {
+export function RegionMultiSelect({
+                                      regions,
+                                      selectedRegionIds,
+                                      onChange,
+                                      disabled = false,
+                                      mode = 'multiple',
+                                      label = mode === 'single' ? 'Регион' : 'Регионы',
+                                      helperText = mode === 'single'
+                                          ? 'Выберите один субъект РФ.'
+                                          : 'Можно выбрать несколько субъектов РФ.'
+                                  }: RegionMultiSelectProps) {
     const rootRef = useRef<HTMLDivElement | null>(null);
     const searchInputRef = useRef<HTMLInputElement | null>(null);
     const [isOpen, setIsOpen] = useState(false);
     const [search, setSearch] = useState('');
 
     useEffect(() => {
-        if (!isOpen) {
-            return;
-        }
+        if (!isOpen) return;
 
         const handlePointerDown = (event: MouseEvent) => {
             if (rootRef.current && !rootRef.current.contains(event.target as Node)) {
@@ -41,126 +52,105 @@ export function RegionMultiSelect({regions, selectedRegionIds, onChange, disable
         () => regions.filter((region) => selectedIdSet.has(region.id)),
         [regions, selectedIdSet]
     );
+
     const filteredRegions = useMemo(() => {
         const query = search.trim().toLowerCase();
-        if (!query) {
-            return regions;
-        }
-        return regions.filter((region) => formatRegionLabel(region).toLowerCase().includes(query));
+        if (!query) return regions;
+        return regions.filter((region) => {
+            const tokens = [
+                region.name,
+                region.federalDistrictName,
+                region.federalDistrictFullName,
+                region.federalDistrictShortName
+            ];
+            return tokens.some((token) => token.toLowerCase().includes(query));
+        });
     }, [regions, search]);
 
+    const labelText = selectedRegions.length === 0
+        ? label
+        : mode === 'single'
+            ? formatRegionLabel(selectedRegions[0])
+            : selectedRegions.length <= 2
+                ? selectedRegions.map(formatRegionLabel).join(', ')
+                : `${selectedRegions.length} регионов выбрано`;
+
     const toggleRegion = (regionId: number) => {
-        const next = new Set(selectedRegionIds);
-        if (next.has(regionId)) {
-            next.delete(regionId);
-        } else {
-            next.add(regionId);
+        if (mode === 'single') {
+            onChange(selectedIdSet.has(regionId) ? [] : [regionId]);
+            setIsOpen(false);
+            return;
         }
+        onChange(selectedIdSet.has(regionId)
+            ? selectedRegionIds.filter((id) => id !== regionId)
+            : [...selectedRegionIds, regionId]);
+    };
+
+    const selectAllFiltered = () => {
+        const next = new Set(selectedRegionIds);
+        filteredRegions.forEach((region) => next.add(region.id));
         onChange(Array.from(next));
     };
 
-    const handleSelectVisible = () => {
-        onChange(Array.from(new Set([...selectedRegionIds, ...filteredRegions.map((region) => region.id)])));
-    };
-
     return (
-        <div className={`region-multiselect ${isOpen ? 'is-open' : ''} ${disabled ? 'is-disabled' : ''}`} ref={rootRef}>
-            <div className="selector-header-row region-selector-head">
-                <strong>Регионы</strong>
-                <span>{selectedRegionIds.length} выбрано</span>
+        <div ref={rootRef} className={`region-multiselect ${disabled ? 'is-disabled' : ''}`}>
+            <div className="region-selector-head">
+                <div>
+                    <strong>{label}</strong>
+                    <p>{helperText}</p>
+                </div>
+                <span className="status-badge subtle-badge">{selectedRegionIds.length}</span>
             </div>
 
-            <div
+            <button
+                type="button"
                 className="region-multiselect-control"
-                role="button"
-                tabIndex={disabled ? -1 : 0}
-                onClick={() => {
-                    if (!disabled) {
-                        setIsOpen((current) => !current);
-                    }
-                }}
-                onKeyDown={(event) => {
-                    if (disabled) {
-                        return;
-                    }
-                    if (event.key === 'Enter' || event.key === ' ') {
-                        event.preventDefault();
-                        setIsOpen((current) => !current);
-                    }
-                    if (event.key === 'Escape') {
-                        setIsOpen(false);
-                    }
-                }}
-                aria-expanded={isOpen}
-                aria-disabled={disabled}
+                onClick={() => !disabled && setIsOpen((current) => !current)}
+                disabled={disabled}
             >
-                <div className="region-multiselect-value">
-                    {selectedRegions.length === 0 ? (
-                        <span className="placeholder-text">Выберите один или несколько регионов</span>
-                    ) : (
-                        <div className="selected-chip-list region-chip-list">
-                            {selectedRegions.slice(0, 15).map((region) => (
-                                <span
-                                    key={region.id}
-                                    className="chip chip-removable"
-                                    onClick={(event) => event.stopPropagation()}
-                                >
-                                    <span>{formatRegionLabel(region)}</span>
-                                    <button
-                                        type="button"
-                                        className="chip-remove-button"
-                                        onClick={(event) => {
-                                            event.stopPropagation();
-                                            toggleRegion(region.id);
-                                        }}
-                                        aria-label={`Удалить ${region.name}`}
-                                    >
-                                        ×
-                                    </button>
-                                </span>
-                            ))}
-                            {selectedRegions.length > 15 &&
-                                <span className="chip">+ ещё {selectedRegions.length - 15}</span>}
-                        </div>
-                    )}
-                </div>
-                <span className="region-multiselect-arrow">▾</span>
-            </div>
+                <span className={`region-multiselect-value ${selectedRegions.length === 0 ? 'placeholder-text' : ''}`}>
+                    {labelText}
+                </span>
+                <span className="region-multiselect-arrow">{isOpen ? '⌃' : '⌄'}</span>
+            </button>
 
             {isOpen && !disabled && (
                 <div className="region-multiselect-menu">
-                    <div className="selector-actions region-multiselect-actions">
+                    <div className="selector-actions">
                         <input
                             ref={searchInputRef}
                             type="search"
                             value={search}
                             onChange={(event) => setSearch(event.target.value)}
-                            placeholder="Поиск региона"
+                            placeholder="Поиск региона или ФО"
                         />
-                        <div className="inline-actions wrap">
-                            <button type="button" onClick={handleSelectVisible} disabled={filteredRegions.length === 0}>
-                                Выбрать видимые
-                            </button>
-                            <button type="button" onClick={() => onChange([])}
-                                    disabled={selectedRegionIds.length === 0}>
-                                Очистить
-                            </button>
-                        </div>
+                        {mode === 'multiple' && (
+                            <>
+                                <button type="button" className="secondary-button" onClick={selectAllFiltered}>Все
+                                </button>
+                                <button type="button" className="secondary-button"
+                                        onClick={() => onChange([])}>Очистить
+                                </button>
+                            </>
+                        )}
                     </div>
 
-                    <div className="region-list region-multiselect-list">
-                        {filteredRegions.map((region) => (
-                            <label key={region.id} className="check-row region-option-row">
-                                <input
-                                    type="checkbox"
-                                    checked={selectedIdSet.has(region.id)}
-                                    onChange={() => toggleRegion(region.id)}
-                                />
-                                <span>{formatRegionLabel(region)}</span>
-                            </label>
-                        ))}
+                    <div className="selector-option-list">
+                        {filteredRegions.map((region) => {
+                            const checked = selectedIdSet.has(region.id);
+                            return (
+                                <label key={region.id} className={`selector-option ${checked ? 'is-selected' : ''}`}>
+                                    <input
+                                        type={mode === 'single' ? 'radio' : 'checkbox'}
+                                        checked={checked}
+                                        onChange={() => toggleRegion(region.id)}
+                                    />
+                                    <span>{formatRegionLabel(region)}</span>
+                                </label>
+                            );
+                        })}
                         {filteredRegions.length === 0 && (
-                            <div className="empty-state compact">По запросу ничего не найдено.</div>
+                            <div className="empty-state compact-empty-state">Регионы не найдены.</div>
                         )}
                     </div>
                 </div>

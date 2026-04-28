@@ -115,7 +115,7 @@ export function FilterPanel({
                                 value={selectedGroupCode}
                                 onChange={(event) => onGroupCodeChange(event.target.value as IndicatorGroupCode | '')}
                             >
-                                <option value="">Выберите группу</option>
+                                <option value="" disabled>Выберите группу</option>
                                 {groups.map((group) => (
                                     <option key={group.code} value={group.code}>
                                         {group.label}

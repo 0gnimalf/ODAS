@@ -1,4 +1,4 @@
-export type IndicatorGroupCode = 'INCOME' | 'OUTCOME' | 'CREDIT' | 'FIN_SOURCE';
+export type IndicatorGroupCode = 'INCOME' | 'OUTCOME' | 'CREDIT' | 'FIN_SOURCE' | 'OTHER';
 
 export interface IndicatorGroupReadDto {
     code: IndicatorGroupCode;
@@ -58,6 +58,7 @@ export interface ObservationQuery {
     month: number;
     regionIds: number[];
     indicatorYearEntryIds: number[];
+    valueKinds?: string[];
     includeChildren: boolean;
     forceRefresh: boolean;
 }

@@ -1,17 +1,8 @@
 import type {ReactNode} from 'react';
-import {useMemo, useState} from 'react';
+import {useEffect, useMemo, useState} from 'react';
 import ReactECharts from 'echarts-for-react';
 import {formatObservationValue, formatPercentValue, truncateLabel} from '../../shared/lib/format';
 import type {SubtreeSliceNodeDto, SubtreeSliceResultDto} from '../../shared/types/analysis';
-
-type ViewKey = 'treemap' | 'table' | 'shares' | 'structure';
-
-const VIEWS: Array<{ key: ViewKey; title: string; description: string }> = [
-    {key: 'treemap', title: 'Treemap', description: 'Визуализация структуры поддерева по размерам узлов.'},
-    {key: 'table', title: 'Иерархическая таблица', description: 'Путь, уровень, значение и доли.'},
-    {key: 'shares', title: 'Доли узлов', description: 'Сравнение вкладов первого уровня.'},
-    {key: 'structure', title: 'Структурный список', description: 'Компактный древовидный список.'}
-];
 
 export function SubtreeResultPanel({result, loading, error, isDirty}: {
     result: SubtreeSliceResultDto | null;
@@ -19,16 +10,40 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
     error: string | null;
     isDirty: boolean;
 }) {
-    const [enabled, setEnabled] = useState<ViewKey[]>(['treemap', 'table', 'structure']);
-    const [showOnlyLeaves, setShowOnlyLeaves] = useState(false);
-    const [shareMode, setShareMode] = useState<'root' | 'parent'>('root');
+    const [drillPath, setDrillPath] = useState<number[]>([]);
+    const [showMissing, setShowMissing] = useState(false);
 
-    const enabledSet = useMemo(() => new Set(enabled), [enabled]);
-    const nodes = useMemo(() => (result?.nodes ?? []).filter((node) => !showOnlyLeaves || !node.hasChildren), [result, showOnlyLeaves]);
-    const topChildren = useMemo(() => nodes.filter((node) => node.level === 1), [nodes]);
+    useEffect(() => {
+        setDrillPath([]);
+    }, [result?.rootIndicatorYearEntryId]);
 
-    const toggle = (key: ViewKey) => {
-        setEnabled((current) => current.includes(key) ? current.filter((item) => item !== key) : [...current, key]);
+    const model = useMemo(() => buildSubtreeModel(result, showMissing), [result, showMissing]);
+    const activeRootIds = useMemo(() => {
+        if (!result) return [];
+        const validPath: number[] = [];
+        for (const nodeId of drillPath) {
+            const node = model.nodeById.get(nodeId);
+            if (!node || model.childrenByParent.get(nodeId)?.length === 0) break;
+            validPath.push(nodeId);
+        }
+        return [result.rootIndicatorYearEntryId, ...validPath];
+    }, [drillPath, model, result]);
+
+    const openNode = (nodeId: number) => {
+        if (!model.childrenByParent.get(nodeId)?.length) return;
+        setDrillPath((current) => {
+            const existingIndex = current.indexOf(nodeId);
+            if (existingIndex >= 0) return current.slice(0, existingIndex + 1);
+            return [...current, nodeId];
+        });
+    };
+
+    const resetTo = (index: number) => {
+        if (index <= 0) {
+            setDrillPath([]);
+            return;
+        }
+        setDrillPath((current) => current.slice(0, index));
     };
 
     return (
@@ -36,194 +51,190 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
             <section className="panel result-display-selector-panel">
                 <div className="panel-header align-start compact-gap">
                     <div>
-                        <h2>Представления аналитики: поддерево</h2>
-                        <p>Treemap, таблица, доли узлов и структурный список с независимым включением.</p>
+                        <h2>Поддерево показателя</h2>
+                        <p>Каждый пирог показывает детей текущего корня. Нажатие на сегмент с потомками добавляет
+                            следующий уровень ниже.</p>
                     </div>
                     <div className="status-badges">
-                        <span className="status-badge">Активно: {enabled.length}</span>
+                        {result && <span className="status-badge">{result.regionName}</span>}
                         {isDirty && <span className="warning-badge">Параметры сценария изменены</span>}
                     </div>
                 </div>
-
                 <div className="view-settings-grid analytics-inline-settings-grid">
-                    <label className="field field-fit-content">
-                        <span>Режим доли</span>
-                        <select value={shareMode}
-                                onChange={(event) => setShareMode(event.target.value as 'root' | 'parent')}>
-                            <option value="root">К корню</option>
-                            <option value="parent">К родителю</option>
-                        </select>
-                    </label>
                     <label className="check-row checkbox-card compact-checkbox-card">
-                        <input type="checkbox" checked={showOnlyLeaves}
-                               onChange={(event) => setShowOnlyLeaves(event.target.checked)}/>
-                        <span>Только листья</span>
+                        <input type="checkbox" checked={showMissing}
+                               onChange={(event) => setShowMissing(event.target.checked)}/>
+                        <span>Показывать missing-узлы</span>
                     </label>
-                </div>
-
-                <div className="result-view-toggle-grid top-margin-16">
-                    {VIEWS.map((view) => {
-                        const active = enabledSet.has(view.key);
-                        return (
-                            <label key={view.key} className={`result-view-toggle-card ${active ? 'is-enabled' : ''}`}>
-                                <div className="result-view-toggle-main">
-                                    <input type="checkbox" checked={active} onChange={() => toggle(view.key)}/>
-                                    <div>
-                                        <strong>{view.title}</strong>
-                                        <p>{view.description}</p>
-                                    </div>
-                                </div>
-                                <span
-                                    className={`result-view-toggle-status ${active ? 'is-enabled' : ''}`}>{active ? 'Показать' : 'Скрыто'}</span>
-                            </label>
-                        );
-                    })}
+                    {activeRootIds.length > 1 && (
+                        <button type="button" className="secondary-button" onClick={() => setDrillPath([])}>Вернуться к
+                            корню</button>
+                    )}
                 </div>
             </section>
 
-            {enabledSet.has('treemap') && (
-                <section className="panel chart-panel result-view-panel">
-                    <Header title="Treemap" description="Структура поддерева по выбранному корню."/>
-                    <Guard loading={loading} error={error} hasData={Boolean(result?.nodes.length)}
-                           emptyMessage="Поддерево ещё не загружено.">
-                        <ReactECharts
-                            style={{height: 520}}
-                            option={{
-                                tooltip: {
-                                    formatter: (params: {
-                                        data: { label?: string; value?: number }
-                                    }) => `${params.data.label ?? ''}<br/>${formatObservationValue(params.data.value ?? null)}`
-                                },
-                                series: [{
-                                    type: 'treemap',
-                                    breadcrumb: {show: true},
-                                    label: {show: true, formatter: '{b}'},
-                                    upperLabel: {show: true},
-                                    data: buildTreemap(result?.nodes ?? [], result?.rootIndicatorYearEntryId ?? 0)
-                                }]
-                            }}
-                        />
-                    </Guard>
-                </section>
-            )}
-
-            {enabledSet.has('shares') && (
-                <section className="panel chart-panel result-view-panel">
-                    <Header title="Доли узлов" description="Сравнение вкладов первого уровня внутри выбранного корня."/>
-                    <Guard loading={loading} error={error} hasData={topChildren.length > 0}
-                           emptyMessage="Нет узлов первого уровня для графика долей.">
-                        <ReactECharts
-                            style={{height: Math.max(320, topChildren.length * 32)}}
-                            option={{
-                                tooltip: {trigger: 'axis', axisPointer: {type: 'shadow'}},
-                                grid: {left: 240, right: 24, top: 24, bottom: 24},
-                                xAxis: {type: 'value'},
-                                yAxis: {
-                                    type: 'category',
-                                    data: topChildren.map((node) => node.indicatorName),
-                                    axisLabel: {formatter: (value: string) => truncateLabel(value, 28)}
-                                },
-                                series: [{
-                                    type: 'bar',
-                                    label: {
-                                        show: true,
-                                        position: 'right',
-                                        formatter: ({value}: { value: number }) => formatPercentValue(value)
-                                    },
-                                    data: topChildren.map((node) => shareMode === 'root' ? node.shareOfRootPercent : node.shareOfParentPercent)
-                                }]
-                            }}
-                        />
-                    </Guard>
-                </section>
-            )}
-
-            {enabledSet.has('table') && (
-                <section className="panel table-panel result-view-panel">
-                    <Header title="Иерархическая таблица"
-                            description="Путь, уровень, значение и доли по каждому узлу поддерева."/>
-                    <Guard loading={loading} error={error} hasData={nodes.length > 0}
-                           emptyMessage="Нет узлов для отображения.">
-                        <div className="table-wrapper">
-                            <table>
-                                <thead>
-                                <tr>
-                                    <th>Путь</th>
-                                    <th>Уровень</th>
-                                    <th>Значение</th>
-                                    <th>Доля к родителю</th>
-                                    <th>Доля к корню</th>
-                                    <th>Missing</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {nodes.map((node) => (
-                                    <tr key={node.indicatorYearEntryId}>
-                                        <td>
-                                            <span className="table-cell-clamp" title={node.path}>{node.path}</span>
-                                        </td>
-                                        <td>{node.level}</td>
-                                        <td>{formatObservationValue(node.value)}</td>
-                                        <td>{formatPercentValue(node.shareOfParentPercent)}</td>
-                                        <td>{formatPercentValue(node.shareOfRootPercent)}</td>
-                                        <td>{node.missing ? 'Да' : 'Нет'}</td>
-                                    </tr>
-                                ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </Guard>
-                </section>
-            )}
-
-            {enabledSet.has('structure') && (
-                <section className="panel result-view-panel">
-                    <Header title="Структурный список"
-                            description="Компактный древовидный список для точного просмотра структуры."/>
-                    <Guard loading={loading} error={error} hasData={nodes.length > 0}
-                           emptyMessage="Структурный список пуст.">
-                        <div className="analytics-structure-list">
-                            {nodes.map((node) => (
-                                <article key={node.indicatorYearEntryId} className="analytics-structure-item"
-                                         style={{paddingLeft: `${node.level * 20 + 12}px`}}>
-                                    <div>
-                                        <strong
-                                            title={node.indicatorName}>{truncateLabel(node.indicatorName, 64)}</strong>
-                                        <div className="analytics-structure-meta" title={node.path}>{node.path}</div>
-                                    </div>
-                                    <div className="analytics-structure-values">
-                                        <span>{formatObservationValue(node.value)}</span>
-                                        <span>{formatPercentValue(shareMode === 'root' ? node.shareOfRootPercent : node.shareOfParentPercent)}</span>
-                                    </div>
-                                </article>
+            <Guard loading={loading} error={error} hasData={Boolean(result && result.nodes.length > 0)}
+                   emptyMessage="Поддерево ещё не загружено.">
+                {result && (
+                    <section className="panel chart-panel result-view-panel">
+                        <Header title="Иерархия пирогов"
+                                description="На первом уровне доля считается к выбранному корню; на вложенных уровнях дополнительно сохраняется доля к главному корню."/>
+                        <div className="drill-breadcrumbs">
+                            {activeRootIds.map((rootId, index) => (
+                                <button key={`${rootId}-${index}`} type="button" className="breadcrumb-button"
+                                        onClick={() => resetTo(index)}>
+                                    {truncateLabel(getNodeTitle(result, model.nodeById.get(rootId)), 54)}
+                                </button>
                             ))}
                         </div>
-                    </Guard>
-                </section>
-            )}
+                        <div className="pie-drill-stack">
+                            {activeRootIds.map((rootId, index) => {
+                                const rootNode = model.nodeById.get(rootId);
+                                const children = model.childrenByParent.get(rootId) ?? [];
+                                return (
+                                    <article key={`${rootId}-${index}`} className="pie-drill-panel">
+                                        <div className="chart-subpanel-header">
+                                            <div>
+                                                <h3>{getNodeTitle(result, rootNode)}</h3>
+                                                <p>{children.length > 0 ? 'Показатели на один уровень ниже' : 'У этого узла нет подчиненных показателей'}</p>
+                                            </div>
+                                            <span>{formatObservationValue(rootNode?.value ?? getRootValue(result))} {result.unitCodeLabel}</span>
+                                        </div>
+                                        {children.length === 0 ? (
+                                            <div className="empty-state compact-empty-state">Нет дочерних узлов для
+                                                следующего графика.</div>
+                                        ) : (
+                                            <ReactECharts
+                                                style={{height: 440}}
+                                                option={buildPieOption(children, result.unitCodeLabel, index === 0)}
+                                                onEvents={{
+                                                    click: (params: { data?: { nodeId?: number } }) => {
+                                                        const nodeId = params.data?.nodeId;
+                                                        if (nodeId != null) openNode(nodeId);
+                                                    }
+                                                }}
+                                                notMerge
+                                            />
+                                        )}
+                                    </article>
+                                );
+                            })}
+                        </div>
+                    </section>
+                )}
+            </Guard>
+
+            <section className="panel table-panel result-view-panel">
+                <Header title="Таблица поддерева"
+                        description="Контрольная таблица со значением, долей к родителю и долей к главному корню."/>
+                <Guard loading={loading} error={error} hasData={model.nodes.length > 0}
+                       emptyMessage="Нет узлов для таблицы.">
+                    <div className="table-wrapper table-wrapper-scroll subtree-table-scroll">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>Путь</th>
+                                <th>Уровень</th>
+                                <th>Значение</th>
+                                <th>Доля к родителю</th>
+                                <th>Доля к главному корню</th>
+                                <th>Есть дети</th>
+                                <th>Missing</th>
+                            </tr>
+                            </thead>
+                            <tbody>
+                            {model.nodes.map((node) => (
+                                <tr key={node.indicatorYearEntryId}>
+                                    <td><span className="table-cell-clamp" title={node.path}>{node.path}</span></td>
+                                    <td>{node.level}</td>
+                                    <td>{formatObservationValue(node.value)}</td>
+                                    <td>{formatPercentValue(node.shareOfParentPercent)}</td>
+                                    <td>{formatPercentValue(node.shareOfRootPercent)}</td>
+                                    <td>{node.hasChildren ? 'Да' : 'Нет'}</td>
+                                    <td>{node.missing ? 'Да' : 'Нет'}</td>
+                                </tr>
+                            ))}
+                            </tbody>
+                        </table>
+                    </div>
+                </Guard>
+            </section>
         </div>
     );
 }
 
-function buildTreemap(nodes: SubtreeSliceNodeDto[], rootId: number) {
-    const childrenByParent = new Map<number | null, SubtreeSliceNodeDto[]>();
+function buildPieOption(children: SubtreeSliceNodeDto[], unitLabel: string, firstLevel: boolean) {
+    return {
+        tooltip: {
+            trigger: 'item',
+            formatter: (params: { data?: PieDatum }) => {
+                const data = params.data;
+                if (!data) return '';
+                return `${data.fullName}<br/>Значение: ${formatObservationValue(data.rawValue)} ${unitLabel}<br/>Доля к текущему корню: ${formatPercentValue(data.shareOfParentPercent)}<br/>Доля к главному корню: ${formatPercentValue(data.shareOfRootPercent)}${data.hasChildren ? '<br/>Нажмите, чтобы раскрыть следующий уровень' : ''}`;
+            }
+        },
+        legend: {type: 'scroll', orient: 'vertical', right: 0, top: 24, bottom: 24, width: 220},
+        series: [{
+            type: 'pie',
+            radius: ['38%', '68%'],
+            center: ['38%', '52%'],
+            minAngle: 3,
+            avoidLabelOverlap: true,
+            label: {
+                formatter: (params: { data?: PieDatum }) => {
+                    const data = params.data;
+                    if (!data) return '';
+                    const share = firstLevel ? data.shareOfParentPercent : data.shareOfRootPercent;
+                    return `${truncateLabel(data.fullName, 28)}\n${formatPercentValue(share)}`;
+                }
+            },
+            data: children.map((node) => ({
+                name: truncateLabel(node.indicatorName, 48),
+                fullName: node.indicatorName,
+                value: Math.max(0, node.value ?? 0),
+                rawValue: node.value,
+                nodeId: node.indicatorYearEntryId,
+                hasChildren: node.hasChildren,
+                shareOfParentPercent: node.shareOfParentPercent,
+                shareOfRootPercent: node.shareOfRootPercent
+            }))
+        }]
+    };
+}
 
-    nodes.forEach((node) => {
-        const key = node.parentIndicatorYearEntryId ?? null;
-        const list = childrenByParent.get(key) ?? [];
+type PieDatum = {
+    fullName: string;
+    rawValue: number | null;
+    nodeId: number;
+    hasChildren: boolean;
+    shareOfParentPercent: number | null;
+    shareOfRootPercent: number | null;
+};
+
+function buildSubtreeModel(result: SubtreeSliceResultDto | null, showMissing: boolean) {
+    const nodes = (result?.nodes ?? []).filter((node) => showMissing || !node.missing);
+    const nodeById = new Map<number, SubtreeSliceNodeDto>();
+    const childrenByParent = new Map<number, SubtreeSliceNodeDto[]>();
+
+    for (const node of nodes) {
+        nodeById.set(node.indicatorYearEntryId, node);
+    }
+    for (const node of nodes) {
+        if (node.parentIndicatorYearEntryId == null) continue;
+        const list = childrenByParent.get(node.parentIndicatorYearEntryId) ?? [];
         list.push(node);
-        childrenByParent.set(key, list);
-    });
+        childrenByParent.set(node.parentIndicatorYearEntryId, list);
+    }
+    childrenByParent.forEach((list) => list.sort((left, right) => (left.sortOrder ?? 0) - (right.sortOrder ?? 0) || left.indicatorName.localeCompare(right.indicatorName, 'ru')));
+    return {nodes, nodeById, childrenByParent};
+}
 
-    const visit = (parentId: number): Array<Record<string, unknown>> =>
-        (childrenByParent.get(parentId) ?? []).map((item) => ({
-            name: item.indicatorName,
-            label: item.indicatorName,
-            value: item.value ?? 0,
-            children: visit(item.indicatorYearEntryId)
-        }));
+function getNodeTitle(result: SubtreeSliceResultDto, node: SubtreeSliceNodeDto | undefined) {
+    return node?.indicatorName ?? result.rootIndicatorName;
+}
 
-    return visit(rootId);
+function getRootValue(result: SubtreeSliceResultDto) {
+    return result.nodes.find((node) => node.indicatorYearEntryId === result.rootIndicatorYearEntryId)?.value ?? null;
 }
 
 function Header({title, description}: { title: string; description: string }) {
@@ -237,7 +248,7 @@ function Guard({loading, error, hasData, emptyMessage, children}: {
     error: string | null;
     hasData: boolean;
     emptyMessage: string;
-    children: ReactNode
+    children: ReactNode;
 }) {
     if (loading) return <div className="empty-state">Загрузка аналитических данных…</div>;
     if (error) return <div className="error-state">{error}</div>;

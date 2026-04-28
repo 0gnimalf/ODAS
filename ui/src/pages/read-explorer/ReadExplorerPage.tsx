@@ -76,7 +76,6 @@ export function ReadExplorerPage() {
 
                 setGroups(groupResponse);
                 setRegions(regionResponse);
-                setGroupCode((current) => current || groupResponse[0]?.code || '');
             } catch (error) {
                 if (!cancelled) {
                     setBootError(extractErrorMessage(error, 'Не удалось загрузить стартовые справочники.'));
@@ -197,13 +196,8 @@ export function ReadExplorerPage() {
         <main className="page-shell">
             <header className="page-header">
                 <div>
-                    <h1>· ODAS ·</h1>
-                    <p>UI-модуль</p>
-                </div>
-                <div className="status-badges">
-                    <span className="status-badge">React</span>
-                    <span className="status-badge">Apache ECharts</span>
-                    <span className="status-badge">v4</span>
+                    <h1>Чтение данных</h1>
+                    <p>Запрос сохранённых наблюдений, простое сравнение регионов и таблица сохраненных значений.</p>
                 </div>
             </header>
 
