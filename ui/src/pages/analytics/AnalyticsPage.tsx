@@ -230,9 +230,8 @@ export function AnalyticsPage() {
         valueKind,
         compareRegionIds,
         compareIndicatorIds,
-        forceRefresh,
-        populationIndicatorEntryId
-    }), [groupCode, year, month, valueKind, compareRegionIds, compareIndicatorIds, forceRefresh, populationIndicatorEntryId]);
+        forceRefresh
+    }), [groupCode, year, month, valueKind, compareRegionIds, compareIndicatorIds, forceRefresh]);
     const subtreeKey = useMemo(() => JSON.stringify({
         groupCode,
         year,
@@ -252,9 +251,8 @@ export function AnalyticsPage() {
         matrixIncludeChildren,
         matrixIncludeDirectChildrenOnly,
         resolvedMatrixIndicatorIds,
-        forceRefresh,
-        populationIndicatorEntryId
-    }), [groupCode, year, month, valueKind, matrixRegionIds, matrixIndicatorIds, matrixIncludeChildren, matrixIncludeDirectChildrenOnly, resolvedMatrixIndicatorIds, forceRefresh, populationIndicatorEntryId]);
+        forceRefresh
+    }), [groupCode, year, month, valueKind, matrixRegionIds, matrixIndicatorIds, matrixIncludeChildren, matrixIncludeDirectChildrenOnly, resolvedMatrixIndicatorIds, forceRefresh]);
 
     const syncTree = async () => {
         if (!groupCode || year <= 0) return;
@@ -268,6 +266,24 @@ export function AnalyticsPage() {
             setTreeSyncLoading(false);
         }
     };
+    const resolvePopulationIndicatorEntryId = async (): Promise<number | null> => {
+        if (populationIndicatorEntryId != null) {
+            return populationIndicatorEntryId;
+        }
+
+        try {
+            await requestIndicatorTreeSync('OTHER', year);
+
+            const refreshedTree = await getIndicatorTree('OTHER', year);
+            setPopulationTree(refreshedTree);
+            setPopulationTreeError(null);
+
+            return findPopulationIndicatorEntryId(refreshedTree);
+        } catch (error) {
+            setPopulationTreeError(extractErrorMessage(error, 'Не удалось синхронизировать показатель численности населения.'));
+            return null;
+        }
+    };
 
     const loadPopulation = async (regionIds: number[]): Promise<{
         values: PopulationByRegion;
@@ -275,7 +291,8 @@ export function AnalyticsPage() {
     }> => {
         if (regionIds.length === 0) return {values: {}, warning: null};
         if (populationTreeError) return {values: {}, warning: populationTreeError};
-        if (populationIndicatorEntryId == null) {
+        const resolvedPopulationIndicatorEntryId = await resolvePopulationIndicatorEntryId();
+        if (resolvedPopulationIndicatorEntryId == null) {
             return {
                 values: {},
                 warning: 'Не найден показатель численности населения в группе «Другое» за выбранный год.'
@@ -287,10 +304,10 @@ export function AnalyticsPage() {
                 year,
                 month,
                 regionIds,
-                indicatorYearEntryIds: [populationIndicatorEntryId],
+                indicatorYearEntryIds: [resolvedPopulationIndicatorEntryId],
                 valueKinds: ['POPULATION'],
                 includeChildren: false,
-                forceRefresh
+                forceRefresh: false
             });
             return {values: buildPopulationByRegion(response), warning: null};
         } catch (error) {
@@ -345,18 +362,16 @@ export function AnalyticsPage() {
             setCompareLoading(true);
             setCompareError(null);
             setComparePopulationWarning(null);
-            const [response, population] = await Promise.all([
-                compareRegions({
-                    groupCode,
-                    year,
-                    month,
-                    indicatorYearEntryId: compareIndicatorIds[0],
-                    valueKind,
-                    regionIds: compareRegionIds,
-                    forceRefresh
-                }),
-                loadPopulation(compareRegionIds)
-            ]);
+            const response = await compareRegions({
+                groupCode,
+                year,
+                month,
+                indicatorYearEntryId: compareIndicatorIds[0],
+                valueKind,
+                regionIds: compareRegionIds,
+                forceRefresh
+            });
+            const population = await loadPopulation(compareRegionIds);
             setCompareResult(response);
             setComparePopulationByRegion(population.values);
             setComparePopulationWarning(population.warning);
@@ -400,18 +415,16 @@ export function AnalyticsPage() {
             setMatrixLoading(true);
             setMatrixError(null);
             setMatrixPopulationWarning(null);
-            const [response, population] = await Promise.all([
-                buildRegionIndicatorMatrix({
-                    groupCode,
-                    year,
-                    month,
-                    regionIds: matrixRegionIds,
-                    indicatorYearEntryIds: resolvedMatrixIndicatorIds,
-                    valueKind,
-                    forceRefresh
-                }),
-                loadPopulation(matrixRegionIds)
-            ]);
+            const response = await buildRegionIndicatorMatrix({
+                groupCode,
+                year,
+                month,
+                regionIds: matrixRegionIds,
+                indicatorYearEntryIds: resolvedMatrixIndicatorIds,
+                valueKind,
+                forceRefresh
+            });
+            const population = await loadPopulation(matrixRegionIds);
             setMatrixResult(response);
             setMatrixPopulationByRegion(population.values);
             setMatrixPopulationWarning(population.warning);

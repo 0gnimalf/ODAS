@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 
 public class ObservationCollectionService implements ObservationCollectionUseCase {
 
+    private static final String POPULATION_INDICATOR_NAME = "Численность населения";
+
     private final ReferenceSyncUseCase referenceSyncUseCase;
     private final ExternalObservationCollectorPort observationCollector;
     private final ExternalPopulationCollectorPort populationCollector;
@@ -61,7 +63,6 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
         if (command.groupCode() != IndicatorGroupCode.OTHER) {
             ensureIndicators(command.groupCode(), command.year());
         }
-        ensureIndicators(IndicatorGroupCode.OTHER, command.year());
 
         Period period = periodPersistence.getOrCreateMonth(command.year(), command.month());
         Period yearPeriod = periodPersistence.getOrCreateYear(command.year());
@@ -69,14 +70,7 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
         Map<IndicatorLookupKey, IndicatorYearEntry> entriesByNameAndParent = command.groupCode() == IndicatorGroupCode.OTHER
                 ? Map.of()
                 : loadEntriesByNameAndParent(command.groupCode(), yearPeriod.id());
-        Map<IndicatorLookupKey, IndicatorYearEntry> populationEntriesByNameAndParent = loadEntriesByNameAndParent(IndicatorGroupCode.OTHER, yearPeriod.id());
-        List<ExternalRegionRef> externalRegions = regionsByExternalCode.values().stream()
-                .map(region -> new ExternalRegionRef(
-                        SourceSystemCode.IMINFIN,
-                        SourceRegionCode.externalPart(region.code(), SourceSystemCode.IMINFIN),
-                        region.name()
-                ))
-                .toList();
+        List<ExternalRegionRef> externalRegions = toExternalRegionRefs(regionsByExternalCode.values());
 
         int payloadCount = 0;
         int received = 0;
@@ -119,23 +113,68 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
             }
         }
 
-        List<Period> monthPeriods = getOrCreateMonthPeriods(command.year());
-        for (ExternalDatasetPayload payload : populationCollector.collectPopulationObservations(command.year(), externalRegions)) {
+        CollectionStats populationStats = collectPopulationObservationsIfMissing(command.year(), regionsByExternalCode);
+        payloadCount += populationStats.payloadCount();
+        received += populationStats.received();
+        saved += populationStats.saved();
+        skipped += populationStats.skipped();
+
+        return new ObservationCollectionResultDto(payloadCount, received, saved, skipped);
+    }
+
+    private CollectionStats collectPopulationObservationsIfMissing(
+            int year,
+            Map<String, Region> regionsByExternalCode
+    ) {
+        if (regionsByExternalCode == null || regionsByExternalCode.isEmpty()) {
+            return CollectionStats.empty();
+        }
+
+        Optional<IndicatorYearEntry> populationEntry = resolvePopulationEntry(year);
+        if (populationEntry.isEmpty()) {
+            return CollectionStats.empty();
+        }
+
+        List<Period> monthPeriods = getOrCreateMonthPeriods(year);
+        List<Long> monthPeriodIds = monthPeriods.stream().map(Period::id).toList();
+        Set<Long> completeRegionIds = observationPersistence.findRegionIdsWithCompleteCurrentObservations(
+                regionsByExternalCode.values().stream().map(Region::id).toList(),
+                populationEntry.get().id(),
+                monthPeriodIds,
+                ObservationValueKind.POPULATION
+        );
+
+        Map<String, Region> missingRegionsByExternalCode = regionsByExternalCode.entrySet().stream()
+                .filter(entry -> !completeRegionIds.contains(entry.getValue().id()))
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        keepFirst(),
+                        LinkedHashMap::new
+                ));
+        if (missingRegionsByExternalCode.isEmpty()) {
+            return CollectionStats.empty();
+        }
+
+        List<ExternalRegionRef> missingExternalRegions = toExternalRegionRefs(missingRegionsByExternalCode.values());
+        int payloadCount = 0;
+        int received = 0;
+        int saved = 0;
+        int skipped = 0;
+
+        for (ExternalDatasetPayload payload : populationCollector.collectPopulationObservations(year, missingExternalRegions)) {
             payloadCount++;
             DatasetCollection collection = saveCollection(payload);
 
             Map<ObservationIdentity, Observation> observationsToSave = new LinkedHashMap<>();
             for (ExternalObservationRow row : payload.observations()) {
                 received++;
-                Region region = row == null ? null : regionsByExternalCode.get(row.regionExternalCode());
+                Region region = row == null ? null : missingRegionsByExternalCode.get(row.regionExternalCode());
 
-                if (region == null || row.indicatorName() == null || row.value() == null || row.valueKind() == null) {
-                    skipped++;
-                    continue;
-                }
-
-                IndicatorYearEntry entry = populationEntriesByNameAndParent.get(IndicatorLookupKey.from(row.indicatorName(), row.parentIndicatorName()));
-                if (entry == null) {
+                if (region == null
+                        || row.indicatorName() == null
+                        || row.value() == null
+                        || row.valueKind() != ObservationValueKind.POPULATION) {
                     skipped++;
                     continue;
                 }
@@ -145,9 +184,9 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
                             null,
                             collection.id(),
                             region.id(),
-                            entry.id(),
+                            populationEntry.get().id(),
                             monthPeriod.id(),
-                            row.valueKind(),
+                            ObservationValueKind.POPULATION,
                             row.value()
                     );
                     observationsToSave.put(ObservationIdentity.from(observation), observation);
@@ -157,7 +196,31 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
             saved += observationPersistence.upsertCurrentBatch(observationsToSave.values());
         }
 
-        return new ObservationCollectionResultDto(payloadCount, received, saved, skipped);
+        return new CollectionStats(payloadCount, received, saved, skipped);
+    }
+
+    private Optional<IndicatorYearEntry> resolvePopulationEntry(int year) {
+        Period yearPeriod = periodPersistence.getOrCreateYear(year);
+        IndicatorLookupKey populationKey = IndicatorLookupKey.from(POPULATION_INDICATOR_NAME, null);
+        Map<IndicatorLookupKey, IndicatorYearEntry> entriesByNameAndParent = loadEntriesByNameAndParent(IndicatorGroupCode.OTHER, yearPeriod.id());
+        IndicatorYearEntry entry = entriesByNameAndParent.get(populationKey);
+        if (entry != null) {
+            return Optional.of(entry);
+        }
+
+        referenceSyncUseCase.syncIndicators(new SyncIndicatorsCommand(IndicatorGroupCode.OTHER, year));
+        entriesByNameAndParent = loadEntriesByNameAndParent(IndicatorGroupCode.OTHER, yearPeriod.id());
+        return Optional.ofNullable(entriesByNameAndParent.get(populationKey));
+    }
+
+    private List<ExternalRegionRef> toExternalRegionRefs(Collection<Region> regions) {
+        return regions.stream()
+                .map(region -> new ExternalRegionRef(
+                        SourceSystemCode.IMINFIN,
+                        SourceRegionCode.externalPart(region.code(), SourceSystemCode.IMINFIN),
+                        region.name()
+                ))
+                .toList();
     }
 
     private DatasetCollection saveCollection(ExternalDatasetPayload payload) {
@@ -250,6 +313,12 @@ public class ObservationCollectionService implements ObservationCollectionUseCas
                     observation.periodId(),
                     observation.observationValueKind()
             );
+        }
+    }
+
+    private record CollectionStats(int payloadCount, int received, int saved, int skipped) {
+        private static CollectionStats empty() {
+            return new CollectionStats(0, 0, 0, 0);
         }
     }
 }

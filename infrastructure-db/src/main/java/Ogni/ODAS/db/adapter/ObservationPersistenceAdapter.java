@@ -9,9 +9,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
-import java.util.Collection;
-import java.util.List;
-import java.util.Optional;
+import java.util.*;
 
 public class ObservationPersistenceAdapter implements ObservationPersistencePort {
 
@@ -37,6 +35,20 @@ public class ObservationPersistenceAdapter implements ObservationPersistencePort
     public ObservationPersistenceAdapter(ObservationJpaRepository repository, JdbcTemplate jdbcTemplate) {
         this.repository = repository;
         this.jdbcTemplate = jdbcTemplate;
+    }
+
+    private static List<Long> normalizeIds(Collection<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return List.of();
+        }
+        return ids.stream()
+                .filter(id -> id != null)
+                .distinct()
+                .toList();
+    }
+
+    private static String placeholders(int count) {
+        return String.join(", ", java.util.Collections.nCopies(count, "?"));
     }
 
     @Override
@@ -87,6 +99,45 @@ public class ObservationPersistenceAdapter implements ObservationPersistencePort
                         observationValueKind
                 )
                 .map(ObservationEntityMapper::toDomain);
+    }
+
+    @Override
+    public Set<Long> findRegionIdsWithCompleteCurrentObservations(
+            Collection<Long> regionIds,
+            Long indicatorYearEntryId,
+            Collection<Long> periodIds,
+            ObservationValueKind valueKind
+    ) {
+        List<Long> normalizedRegionIds = normalizeIds(regionIds);
+        List<Long> normalizedPeriodIds = normalizeIds(periodIds);
+        if (normalizedRegionIds.isEmpty()
+                || normalizedPeriodIds.isEmpty()
+                || indicatorYearEntryId == null
+                || valueKind == null) {
+            return Set.of();
+        }
+
+        String regionPlaceholders = placeholders(normalizedRegionIds.size());
+        String periodPlaceholders = placeholders(normalizedPeriodIds.size());
+        String sql = """
+                SELECT region_id
+                FROM observation
+                WHERE region_id IN (%s)
+                  AND indicator_year_entry_id = ?
+                  AND period_id IN (%s)
+                  AND observation_value_kind = ?
+                GROUP BY region_id
+                HAVING COUNT(DISTINCT period_id) = ?
+                """.formatted(regionPlaceholders, periodPlaceholders);
+
+        List<Object> args = new ArrayList<>(normalizedRegionIds.size() + normalizedPeriodIds.size() + 3);
+        args.addAll(normalizedRegionIds);
+        args.add(indicatorYearEntryId);
+        args.addAll(normalizedPeriodIds);
+        args.add(valueKind.name());
+        args.add(normalizedPeriodIds.size());
+
+        return new LinkedHashSet<>(jdbcTemplate.query(sql, (rs, rowNum) -> rs.getLong("region_id"), args.toArray()));
     }
 
     private void bindObservation(PreparedStatement ps, Observation observation) throws SQLException {

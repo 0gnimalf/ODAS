@@ -111,14 +111,12 @@ public class IminfinPopulationCollector implements ExternalPopulationCollectorPo
     }
 
     private List<String> resolvePopulationDataSourceCodes(IminfinReportDefinition report) {
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-
-        report.dataSources().values().stream()
-                .filter(this::isPopulationCandidate)
-                .map(IminfinDataSourceDefinition::name)
-                .forEach(result::add);
-
-        return List.copyOf(result);
+        return report.dataSources().entrySet().stream()
+                .filter(entry -> entry.getKey() != null && !entry.getKey().isBlank())
+                .filter(entry -> isPopulationCandidate(entry.getValue()))
+                .map(Map.Entry::getKey)
+                .distinct()
+                .toList();
     }
 
     private boolean isPopulationCandidate(IminfinDataSourceDefinition dataSource) {
