@@ -1,5 +1,6 @@
 package Ogni.ODAS.application.service;
 
+import Ogni.ODAS.application.command.CollectObservationsCommand;
 import Ogni.ODAS.application.command.ReadObservationsCommand;
 import Ogni.ODAS.application.dto.read.*;
 import Ogni.ODAS.application.port.in.ObservationCollectionUseCase;
@@ -73,7 +74,7 @@ public class StoredDataReadService implements StoredDataReadUseCase {
         List<Long> requestedIndicatorIds = command.indicatorYearEntryIds();
 
         if (command.forceRefresh()) {
-            observationCollectionUseCase.collectMonthlyObservations(new Ogni.ODAS.application.command.CollectObservationsCommand(
+            observationCollectionUseCase.collectMonthlyObservations(new CollectObservationsCommand(
                     command.groupCode(),
                     command.year(),
                     command.month(),
