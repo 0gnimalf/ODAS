@@ -1,10 +1,10 @@
-import {API_BASE_URL} from '../config/env';
+import {apiPost} from './httpClient';
 import type {
-    BuildMonthlySeriesCommand,
-    BuildRegionIndicatorMatrixCommand,
-    BuildSubtreeSliceCommand,
-    CalculatePeriodGrowthMetricsCommand,
-    CompareRegionsCommand,
+    BuildMonthlySeriesRequest,
+    BuildRegionIndicatorMatrixRequest,
+    BuildSubtreeSliceRequest,
+    CalculatePeriodGrowthMetricsRequest,
+    CompareRegionsRequest,
     MonthlySeriesResultDto,
     PeriodGrowthMetricsResultDto,
     RegionComparisonResultDto,
@@ -12,21 +12,19 @@ import type {
     SubtreeSliceResultDto
 } from '../types/analysis';
 
-async function postJson<TReq, TRes>(path: string, body: TReq): Promise<TRes> {
-    const response = await fetch(`${API_BASE_URL}${path}`, {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify(body)
-    });
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
-    }
-    return await response.json() as TRes;
-}
+const ANALYSIS_API_ROOT = '/api/analysis';
 
-export const buildMonthlySeries = (command: BuildMonthlySeriesCommand) => postJson<BuildMonthlySeriesCommand, MonthlySeriesResultDto>('/internal/temp/analysis/series/monthly', command);
-export const calculatePeriodGrowthMetrics = (command: CalculatePeriodGrowthMetricsCommand) => postJson<CalculatePeriodGrowthMetricsCommand, PeriodGrowthMetricsResultDto>('/internal/temp/analysis/metrics/period-growth', command);
-export const compareRegions = (command: CompareRegionsCommand) => postJson<CompareRegionsCommand, RegionComparisonResultDto>('/internal/temp/analysis/compare/regions', command);
-export const buildSubtreeSlice = (command: BuildSubtreeSliceCommand) => postJson<BuildSubtreeSliceCommand, SubtreeSliceResultDto>('/internal/temp/analysis/subtree', command);
-export const buildRegionIndicatorMatrix = (command: BuildRegionIndicatorMatrixCommand) => postJson<BuildRegionIndicatorMatrixCommand, RegionIndicatorMatrixResultDto>('/internal/temp/analysis/matrix', command);
+export const buildMonthlySeries = (request: BuildMonthlySeriesRequest) =>
+    apiPost<BuildMonthlySeriesRequest, MonthlySeriesResultDto>(`${ANALYSIS_API_ROOT}/series/monthly`, request);
+
+export const calculatePeriodGrowthMetrics = (request: CalculatePeriodGrowthMetricsRequest) =>
+    apiPost<CalculatePeriodGrowthMetricsRequest, PeriodGrowthMetricsResultDto>(`${ANALYSIS_API_ROOT}/metrics/period-growth`, request);
+
+export const compareRegions = (request: CompareRegionsRequest) =>
+    apiPost<CompareRegionsRequest, RegionComparisonResultDto>(`${ANALYSIS_API_ROOT}/compare/regions`, request);
+
+export const buildSubtreeSlice = (request: BuildSubtreeSliceRequest) =>
+    apiPost<BuildSubtreeSliceRequest, SubtreeSliceResultDto>(`${ANALYSIS_API_ROOT}/subtree`, request);
+
+export const buildRegionIndicatorMatrix = (request: BuildRegionIndicatorMatrixRequest) =>
+    apiPost<BuildRegionIndicatorMatrixRequest, RegionIndicatorMatrixResultDto>(`${ANALYSIS_API_ROOT}/matrix`, request);

@@ -1,4 +1,4 @@
-import {API_BASE_URL} from '../config/env';
+import {apiGet} from './httpClient';
 import {appendRepeatedNumberParams} from '../lib/queryParams';
 import type {
     IndicatorGroupCode,
@@ -9,29 +9,14 @@ import type {
     RegionReadDto
 } from '../types/read';
 
-async function fetchJson<T>(path: string): Promise<T> {
-    const response = await fetch(`${API_BASE_URL}${path}`);
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
-    }
-    return await response.json() as Promise<T>;
-}
-
-async function fetchVoid(path: string): Promise<void> {
-    const response = await fetch(`${API_BASE_URL}${path}`);
-    if (!response.ok) {
-        const text = await response.text();
-        throw new Error(text || `HTTP ${response.status}`);
-    }
-}
+const READ_API_ROOT = '/api/read';
 
 export function getIndicatorGroups(): Promise<IndicatorGroupReadDto[]> {
-    return fetchJson<IndicatorGroupReadDto[]>('/internal/temp/read/groups');
+    return apiGet<IndicatorGroupReadDto[]>(`${READ_API_ROOT}/groups`);
 }
 
 export function getRegions(): Promise<RegionReadDto[]> {
-    return fetchJson<RegionReadDto[]>('/internal/temp/read/regions');
+    return apiGet<RegionReadDto[]>(`${READ_API_ROOT}/regions`);
 }
 
 export function getIndicatorTree(
@@ -42,15 +27,7 @@ export function getIndicatorTree(
         group: groupCode,
         year: String(year)
     });
-    return fetchJson<IndicatorTreeNodeReadDto[]>(`/internal/temp/read/indicators/tree?${params.toString()}`);
-}
-
-export function requestIndicatorTreeSync(groupCode: IndicatorGroupCode, year: number): Promise<void> {
-    const params = new URLSearchParams({
-        group: groupCode,
-        year: String(year)
-    });
-    return fetchVoid(`/internal/temp/reference/indicators?${params.toString()}`);
+    return apiGet<IndicatorTreeNodeReadDto[]>(`${READ_API_ROOT}/indicators/tree?${params.toString()}`);
 }
 
 export function getObservations(query: ObservationQuery): Promise<ObservationReadResultDto> {
@@ -66,5 +43,5 @@ export function getObservations(query: ObservationQuery): Promise<ObservationRea
     appendRepeatedNumberParams(params, 'indicatorYearEntryId', query.indicatorYearEntryIds);
     query.valueKinds?.forEach((valueKind) => params.append('valueKind', valueKind));
 
-    return fetchJson<ObservationReadResultDto>(`/internal/temp/read/observations?${params.toString()}`);
+    return apiGet<ObservationReadResultDto>(`${READ_API_ROOT}/observations?${params.toString()}`);
 }

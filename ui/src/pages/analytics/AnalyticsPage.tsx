@@ -1,11 +1,6 @@
 import {useEffect, useMemo, useState} from 'react';
-import {
-    getIndicatorGroups,
-    getIndicatorTree,
-    getObservations,
-    getRegions,
-    requestIndicatorTreeSync
-} from '../../shared/api/odasReadApi';
+import {getIndicatorGroups, getIndicatorTree, getObservations, getRegions} from '../../shared/api/odasReadApi';
+import {requestIndicatorTreeSync} from '../../shared/api/odasReferenceApi';
 import {
     buildMonthlySeries,
     buildRegionIndicatorMatrix,

@@ -1,4 +1,4 @@
-package Ogni.ODAS.boot.temp;
+package Ogni.ODAS.boot.api;
 
 import Ogni.ODAS.application.command.ReadObservationsCommand;
 import Ogni.ODAS.application.dto.read.IndicatorGroupReadDto;
@@ -17,12 +17,12 @@ import java.util.List;
 import java.util.Set;
 
 @RestController
-@RequestMapping("/internal/temp/read")
-public class TemporaryReadController {
+@RequestMapping("/api/read")
+public class ReadController {
 
     private final StoredDataReadUseCase storedDataReadUseCase;
 
-    public TemporaryReadController(StoredDataReadUseCase storedDataReadUseCase) {
+    public ReadController(StoredDataReadUseCase storedDataReadUseCase) {
         this.storedDataReadUseCase = storedDataReadUseCase;
     }
 

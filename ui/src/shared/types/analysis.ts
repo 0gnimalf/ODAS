@@ -26,7 +26,11 @@ export type ObservationValueKindOption = {
 
 export const OBSERVATION_VALUE_KIND_OPTIONS: ObservationValueKindOption[] = [
     {code: 'PLAN', label: 'План', unitCode: 'THOUSAND_RUB'},
-    {code: 'REFINED_PLAN_CONSOLIDATED_SUBJECT_BUDGET', label: 'Уточненный план; конс.бюджет субъекта РФ', unitCode: 'THOUSAND_RUB'},
+    {
+        code: 'REFINED_PLAN_CONSOLIDATED_SUBJECT_BUDGET',
+        label: 'Уточненный план; конс.бюджет субъекта РФ',
+        unitCode: 'THOUSAND_RUB'
+    },
     {code: 'REFINED_PLAN_SUBJECT_BUDGET', label: 'Уточненный план; в т.ч. бюджет субъекта', unitCode: 'THOUSAND_RUB'},
     {
         code: 'REFINED_PLAN_RATE_TO_PREVIOUS_PERIOD_EXECUTION',
@@ -44,7 +48,7 @@ export const OBSERVATION_VALUE_KIND_OPTIONS: ObservationValueKindOption[] = [
     // {code: 'PER_CAPITA', label: 'На душу населения'}
 ];
 
-export interface BuildMonthlySeriesCommand {
+export interface BuildMonthlySeriesRequest {
     groupCode: IndicatorGroupCode;
     regionId: number;
     indicatorYearEntryId: number;
@@ -56,7 +60,7 @@ export interface BuildMonthlySeriesCommand {
     forceRefresh: boolean;
 }
 
-export interface CalculatePeriodGrowthMetricsCommand {
+export interface CalculatePeriodGrowthMetricsRequest {
     groupCode: IndicatorGroupCode;
     regionId: number;
     indicatorYearEntryId: number;
@@ -67,7 +71,7 @@ export interface CalculatePeriodGrowthMetricsCommand {
     forceRefresh: boolean;
 }
 
-export interface CompareRegionsCommand {
+export interface CompareRegionsRequest {
     groupCode: IndicatorGroupCode;
     year: number;
     month: number;
@@ -77,7 +81,7 @@ export interface CompareRegionsCommand {
     forceRefresh: boolean;
 }
 
-export interface BuildSubtreeSliceCommand {
+export interface BuildSubtreeSliceRequest {
     groupCode: IndicatorGroupCode;
     year: number;
     month: number;
@@ -87,7 +91,7 @@ export interface BuildSubtreeSliceCommand {
     forceRefresh: boolean;
 }
 
-export interface BuildRegionIndicatorMatrixCommand {
+export interface BuildRegionIndicatorMatrixRequest {
     groupCode: IndicatorGroupCode;
     year: number;
     month: number;

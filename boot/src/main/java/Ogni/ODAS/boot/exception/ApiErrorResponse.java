@@ -1,8 +1,8 @@
-package Ogni.ODAS.boot.temp;
+package Ogni.ODAS.boot.exception;
 
 import java.time.OffsetDateTime;
 
-public record TemporaryErrorResponse(
+public record ApiErrorResponse(
         OffsetDateTime timestamp,
         int status,
         String error,
