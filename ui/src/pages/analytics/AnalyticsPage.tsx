@@ -58,6 +58,12 @@ const SCENARIOS: Array<{ key: Scenario; title: string; description: string }> = 
     }
 ];
 
+const PERCENT_UNIT_CODE = 'PERCENT';
+
+function shouldHidePercentValueKinds(scenario: Scenario, groupCode: IndicatorGroupCode | '') {
+    return scenario !== 'series' || groupCode === 'CREDIT';
+}
+
 export function AnalyticsPage() {
     const [groups, setGroups] = useState<IndicatorGroupReadDto[]>([]);
     const [regions, setRegions] = useState<RegionReadDto[]>([]);
@@ -71,6 +77,21 @@ export function AnalyticsPage() {
     const [month, setMonth] = useState(1);
     const [valueKind, setValueKind] = useState<ObservationValueKind>('ACTUAL_CONSOLIDATED_SUBJECT_BUDGET');
     const [forceRefresh, setForceRefresh] = useState(false);
+
+    const valueKindOptions = useMemo(() => {
+        if (!shouldHidePercentValueKinds(scenario, groupCode)) {
+            return OBSERVATION_VALUE_KIND_OPTIONS;
+        }
+        return OBSERVATION_VALUE_KIND_OPTIONS.filter((option) => option.unitCode !== PERCENT_UNIT_CODE);
+    }, [scenario, groupCode]);
+
+    useEffect(() => {
+        if (valueKindOptions.length === 0 || valueKindOptions.some((option) => option.code === valueKind)) {
+            return;
+        }
+
+        setValueKind(valueKindOptions[0].code);
+    }, [valueKind, valueKindOptions]);
 
     const [bootLoading, setBootLoading] = useState(true);
     const [bootError, setBootError] = useState<string | null>(null);
@@ -438,13 +459,15 @@ export function AnalyticsPage() {
         }
     };
 
-    const canLoad = scenario === 'series'
+    const isValueKindAvailable = valueKindOptions.some((option) => option.code === valueKind);
+
+    const canLoad = isValueKindAvailable && (scenario === 'series'
         ? Boolean(groupCode && seriesRegionId !== '' && seriesIndicatorIds.length === 1)
         : scenario === 'compare'
             ? Boolean(groupCode && compareRegionIds.length > 0 && compareIndicatorIds.length === 1)
             : scenario === 'subtree'
                 ? Boolean(groupCode && subtreeRegionId !== '' && subtreeIndicatorIds.length === 1)
-                : Boolean(groupCode && matrixRegionIds.length > 0 && resolvedMatrixIndicatorIds.length > 0);
+                : Boolean(groupCode && matrixRegionIds.length > 0 && resolvedMatrixIndicatorIds.length > 0));
 
     const loading = scenario === 'series' ? seriesLoading : scenario === 'compare' ? compareLoading : scenario === 'subtree' ? subtreeLoading : matrixLoading;
     const activeScenario = SCENARIOS.find((item) => item.key === scenario) ?? SCENARIOS[0];
@@ -542,7 +565,7 @@ export function AnalyticsPage() {
                                             <span>Вид значения</span>
                                             <select value={valueKind}
                                                     onChange={(event) => setValueKind(event.target.value as ObservationValueKind)}>
-                                                {OBSERVATION_VALUE_KIND_OPTIONS.map((option) => <option
+                                                {valueKindOptions.map((option) => <option
                                                     key={option.code} value={option.code}>{option.label}</option>)}
                                             </select>
                                         </label>

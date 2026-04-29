@@ -18,20 +18,27 @@ export type ObservationValueKind =
 
 export type NonCumulativeValueMode = 'SERIES_RANGE' | 'TARGET_MONTH_AND_QUARTER_METRICS';
 
-export const OBSERVATION_VALUE_KIND_OPTIONS: Array<{ code: ObservationValueKind; label: string }> = [
-    {code: 'PLAN', label: 'План'},
-    {code: 'REFINED_PLAN_CONSOLIDATED_SUBJECT_BUDGET', label: 'Уточненный план; конс.бюджет субъекта РФ'},
-    {code: 'REFINED_PLAN_SUBJECT_BUDGET', label: 'Уточненный план; в т.ч. бюджет субъекта'},
+export type ObservationValueKindOption = {
+    code: ObservationValueKind;
+    label: string;
+    unitCode: string;
+};
+
+export const OBSERVATION_VALUE_KIND_OPTIONS: ObservationValueKindOption[] = [
+    {code: 'PLAN', label: 'План', unitCode: 'THOUSAND_RUB'},
+    {code: 'REFINED_PLAN_CONSOLIDATED_SUBJECT_BUDGET', label: 'Уточненный план; конс.бюджет субъекта РФ', unitCode: 'THOUSAND_RUB'},
+    {code: 'REFINED_PLAN_SUBJECT_BUDGET', label: 'Уточненный план; в т.ч. бюджет субъекта', unitCode: 'THOUSAND_RUB'},
     {
         code: 'REFINED_PLAN_RATE_TO_PREVIOUS_PERIOD_EXECUTION',
-        label: 'Темп уточненного плана к исполнению пред. года (кроме кредитов)'
+        label: 'Темп уточненного плана к исполнению пред. года',
+        unitCode: 'PERCENT'
     },
-    {code: 'ACTUAL_CONSOLIDATED_SUBJECT_BUDGET', label: 'Исполнено; конс.бюджет субъекта РФ'},
-    {code: 'ACTUAL_SUBJECT_BUDGET', label: 'Исполнено; в т.ч. бюджет субъекта'},
+    {code: 'ACTUAL_CONSOLIDATED_SUBJECT_BUDGET', label: 'Исполнено; конс.бюджет субъекта РФ', unitCode: 'THOUSAND_RUB'},
+    {code: 'ACTUAL_SUBJECT_BUDGET', label: 'Исполнено; в т.ч. бюджет субъекта', unitCode: 'THOUSAND_RUB'},
     // {code: 'ACTUAL_RATE_TO_PREVIOUS_PERIOD', label: 'Исполнено; темп к соотв. периоду пред. года'},
-    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT', label: 'Темп роста; по субъекту (кроме кредитов)'},
-    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_FEDERAL_DISTRICT', label: 'Темп роста; по ФО (кроме кредитов)'},
-    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_RUSSIAN_FEDERATION', label: 'Темп роста; по РФ (кроме кредитов)'},
+    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_SUBJECT', label: 'Темп роста; по субъекту', unitCode: 'PERCENT'},
+    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_FEDERAL_DISTRICT', label: 'Темп роста; по ФО', unitCode: 'PERCENT'},
+    {code: 'GROWTH_RATE_TO_PREVIOUS_PERIOD_BY_RUSSIAN_FEDERATION', label: 'Темп роста; по РФ', unitCode: 'PERCENT'},
     // {code: 'POPULATION', label: 'Численность населения'},
     // {code: 'SHARE', label: 'Доля'},
     // {code: 'PER_CAPITA', label: 'На душу населения'}
