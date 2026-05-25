@@ -16,7 +16,7 @@ import {type AnalyticsViewDefinition, AnalyticsViewSelector} from './AnalyticsVi
 type SubtreeViewKey = 'pies' | 'table';
 
 const SUBTREE_VIEWS: Array<AnalyticsViewDefinition<SubtreeViewKey>> = [
-    {key: 'pies', title: 'Иерархия пирогов', description: 'Пошаговое раскрытие детей выбранного корня.'},
+    {key: 'pies', title: 'Иерархия', description: 'Пошаговое раскрытие детей выбранного корня.'},
     {key: 'table', title: 'Таблица поддерева', description: 'Значение, доли к родителю и главному корню.'}
 ];
 
@@ -79,7 +79,7 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
     return (
         <div className="results-stack">
             <AnalyticsViewSelector
-                title="Представления аналитики: поддерево"
+                title="Представления аналитики: Иерархия"
                 views={SUBTREE_VIEWS}
                 enabledSet={enabledViewSet}
                 enabledCount={enabledViews.length}
@@ -90,8 +90,8 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
             <section className="panel result-display-selector-panel">
                 <div className="panel-header align-start compact-gap">
                     <div>
-                        <h2>Настройки поддерева</h2>
-                        <p>Каждый пирог показывает детей текущего корня. Нажатие на сегмент с потомками добавляет
+                        <h2>Настройки иерархии</h2>
+                        <p>Каждый график показывает детей текущего корня. Нажатие на сегмент с потомками добавляет
                             следующий уровень ниже.</p>
                     </div>
                     <div className="status-badges">
@@ -116,7 +116,7 @@ export function SubtreeResultPanel({result, loading, error, isDirty}: {
                        emptyMessage="Поддерево ещё не загружено.">
                     {result && (
                         <section className="panel chart-panel result-view-panel">
-                            <Header title="Иерархия пирогов"
+                            <Header title="Иерархия показателей"
                                     description="На первом уровне доля считается к выбранному корню; на вложенных уровнях дополнительно сохраняется доля к главному корню."/>
                             <div className="drill-breadcrumbs">
                                 {activeRootIds.map((rootId, index) => (

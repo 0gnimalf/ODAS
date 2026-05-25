@@ -45,7 +45,7 @@ const SCENARIOS: Array<{ key: Scenario; title: string; description: string }> = 
         title: 'Сравнение регионов',
         description: 'Рейтинг регионов, доли и пересчёт на численность населения.'
     },
-    {key: 'subtree', title: 'Поддерево', description: 'Интерактивные пироги по уровням иерархии показателей.'},
+    {key: 'subtree', title: 'Иерархия', description: 'Интерактивные графики по уровням иерархии показателей.'},
     {
         key: 'matrix',
         title: 'Матрица',
