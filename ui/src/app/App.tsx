@@ -6,7 +6,7 @@ type Section = 'read' | 'analytics';
 
 const SECTIONS: Array<{ key: Section; title: string; description: string }> = [
     {key: 'read', title: 'Чтение данных', description: 'Запрос наблюдений, сравнение и таблица'},
-    {key: 'analytics', title: 'Аналитика', description: 'Ряды, сравнение, поддерево и матрицы'}
+    {key: 'analytics', title: 'Аналитика', description: 'Ряды, сравнение, иерархия и матрицы'}
 ];
 
 export default function App() {
